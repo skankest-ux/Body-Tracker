@@ -1,12 +1,22 @@
-Body Tracker
+Body Tracker v4
 
-Open index.html in a modern browser. Data is stored locally on the device.
+Open via GitHub Pages or another HTTPS host for the best installed PWA behavior. Data is stored locally on the device.
 
 Storage model:
-- Primary save layer: IndexedDB, the browser's lightweight local database.
-- Fallback mirror: localStorage, only so the app can recover if IndexedDB is unavailable.
-- Manual backups: Settings > Export JSON. Use this for long-term backups or moving data between devices.
+- Primary: IndexedDB local database managed by the browser for this site/app origin.
+- Fallback mirror: localStorage.
+- Backup: JSON export/import. Export often while testing.
 
-Important: IndexedDB is not the browser cache, but it is still controlled by the browser/app. Data can be removed if you clear site data, uninstall the PWA/browser, or the browser/app purges storage. Use Export JSON periodically if you care about long-term history.
+v4 changes:
+- Version number appears in Settings.
+- Removed the 'editable forever' text from the main date header.
+- Date header opens a calendar picker.
+- Calendar dots: blank = no logged activity/data, yellow = logged but below full daily target, green = full daily target met/exceeded.
+- Character bars are tappable and show what activities, habits, and modifiers increase each attribute.
+- Service worker cache name bumped to body-tracker-v4.
 
-This v1 is local-first and has no cloud sync or direct AI integration. The ChatGPT assist buttons copy prompts you can paste manually when creating new activities or habits.
+
+Body Tracker v4.0.0 build 2026-06-30.4
+- Version displayed in header/footer and Settings.
+- Calendar/date picker and attribute bar guide are included.
+- Service worker is network-first and cache versioned to reduce stale installs.

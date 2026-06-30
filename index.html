@@ -13,7 +13,7 @@
   <header>
     <div class="toprow">
       <div><h1>Body Tracker</h1><div class="sub">local-first RPG character progression</div></div>
-      <div class="level" id="levelBadge">LV 1</div>
+      <div class="badgeStack"><div class="level" id="levelBadge">LV 1</div><div class="versionBadge" id="versionBadge">v4.0.0</div></div>
     </div>
   </header>
 
@@ -32,6 +32,7 @@
   <button class="tab" data-tab="settings">Settings</button>
 </nav>
 <div id="toast" class="toast"></div>
+<div id="appVersionFooter" class="versionFooter">v4.0.0</div>
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('./service-worker.js').catch(()=>{}); }
