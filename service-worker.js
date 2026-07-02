@@ -1,4 +1,4 @@
-const CACHE_NAME = 'body-tracker-v6.0.0-20260701';
+const CACHE_NAME = 'body-tracker-v7.0.0-20260702';
 const ASSETS = ['./','./index.html','./styles.css','./app.js','./manifest.json','./icon.svg'];
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -14,4 +14,8 @@ self.addEventListener('fetch', event => {
     caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
     return response;
   }).catch(() => caches.match(event.request).then(r => r || caches.match('./index.html'))));
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
