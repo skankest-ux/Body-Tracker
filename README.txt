@@ -1,27 +1,25 @@
-Body Tracker v5.0.1
+Body Tracker v6.0.0
 
-Mobile-first RPG fitness tracker.
+Local-first RPG-style fitness tracker.
 
-Deploy to GitHub Pages:
-1. Put index.html, app.js, styles.css, manifest.json, service-worker.js, and icon.svg in the repo root.
-2. Commit and wait for Pages to deploy.
-3. Open the GitHub Pages URL on Android Chrome.
-4. Use Add to Home Screen / Install app.
+Install/update on GitHub Pages:
+1. Export a JSON backup from Settings before replacing files.
+2. Replace the repository files with this folder's contents.
+3. Commit changes and wait for GitHub Pages to redeploy.
+4. In the installed phone app, use Settings -> Reload latest app version if the old build is cached.
+
+v6 changes:
+- Day tab renamed from Today to Day.
+- More compact top bar and nutrition/habit layout.
+- Version number only appears in Settings.
+- Date navigation restored with previous/next date buttons around the selected date.
+- Calendar dates with measurements are subtly shaded.
+- Nutrition/habit scoring includes 200%+.
+- Full Day log restored at the bottom with delete controls for activities, habits, exceptions, and measurements.
+- Profile XP bar moved above the rank bar so it does not interfere with benchmark text.
+- Level system changed to earned progression: starts low and is capped until enough logged days and/or benchmark measurements exist.
 
 Storage:
-- IndexedDB-first local database.
+- IndexedDB-first local storage.
 - localStorage fallback mirror.
-- Export JSON backup from Settings before updates.
-
-v5 changes:
-- Character bars: Strength, Endurance, Agility, Mobility, Recovery, Nutrition.
-- Body Comp removed as a trainable stat and treated as an outcome/measurement.
-- Profile page with overall fitness, attribute levels, XP bars, rank bars, and benchmark markers.
-- Benchmark setting: Average / Active / Athlete.
-- Weekly pace: expected-by-today target and ahead/behind schedule.
-- Week start day and day rollover hour settings.
-- Indian Clubs activity.
-- Tappable character bars with what affects the trait and quick-gain actions.
-
-
-Update helper: Settings now includes Reload latest app version. This clears cached app files/service worker and reloads without deleting IndexedDB save data.
+- JSON and CSV export.

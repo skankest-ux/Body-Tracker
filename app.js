@@ -1,6 +1,6 @@
-/* Body Tracker v5.0.1 */
-const APP_VERSION = 'v5.0.1';
-const APP_BUILD = '2026-07-01.5.1';
+/* Body Tracker v6.0.0 */
+const APP_VERSION = 'v6.0.0';
+const APP_BUILD = '2026-07-01.6.0';
 const DB_SCHEMA = 'v2';
 const KEY = 'bodyTracker.v2';
 const LEGACY_KEY = 'bodyTracker.v1';
@@ -342,6 +342,24 @@ function latestMeasurement(type){
   const arr=(state.measurements||[]).filter(m=>m.type===type).sort((a,b)=>a.date.localeCompare(b.date));
   return arr[arr.length-1] || null;
 }
+function measurementCountForAttr(attr){
+  const map = {
+    strength:['bench10','pullups','pushups'],
+    endurance:['elliptical5','rhr'],
+    agility:[],
+    mobility:[],
+    recovery:['rhr'],
+    nutrition:['waist','bodyFat','weight']
+  };
+  const set = new Set(map[attr] || []);
+  return (state.measurements||[]).filter(m=>set.has(m.type)).length;
+}
+function touchedDayCount(){
+  return Object.values(state.days||{}).filter(d=>!!(d.touched || (d.activities||[]).length || Object.keys(d.habits||{}).length || Object.keys(d.exceptions||{}).length)).length;
+}
+function totalAttrPoints(attr){
+  return Object.keys(state.days||{}).reduce((sum,k)=> sum + Math.max(0, scoreDay(k).total[attr]||0), 0);
+}
 function recentAverageCompletion(attr, days=42){
   let sum=0, count=0;
   for(let i=0;i<days;i++){
@@ -361,54 +379,73 @@ function benchmarkScoreForAttr(attr){
   const waist = latestMeasurement('waist')?.value;
   const bf = latestMeasurement('bodyFat')?.value;
   if(attr==='strength'){
-    const b = bench ? clamp((bench/wt)*70,0,90) : 35;
-    const p = pullups ? clamp(pullups*4,0,90) : 35;
-    const pu = pushups ? clamp(pushups*1.2,0,90) : 35;
-    return (b+p+pu)/3;
+    const vals=[];
+    if(bench) vals.push(clamp((bench/wt)*70,0,90));
+    if(pullups) vals.push(clamp(pullups*4,0,90));
+    if(pushups) vals.push(clamp(pushups*1.2,0,90));
+    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
   }
   if(attr==='endurance'){
-    const e = ell ? clamp((ell-35)*2.1,20,90) : 35;
-    const hr = rhr ? clamp(95-rhr,20,85) : 35;
-    return (e+hr)/2;
+    const vals=[];
+    if(ell) vals.push(clamp((ell-35)*2.1,20,90));
+    if(rhr) vals.push(clamp(95-rhr,20,85));
+    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
   }
-  if(attr==='agility') return 30 + recentAverageCompletion('agility',56)*45;
-  if(attr==='mobility') return 25 + recentAverageCompletion('mobility',56)*50;
+  if(attr==='agility') return touchedDayCount() ? 20 + recentAverageCompletion('agility',56)*45 : null;
+  if(attr==='mobility') return touchedDayCount() ? 15 + recentAverageCompletion('mobility',56)*50 : null;
   if(attr==='recovery'){
-    const hr = rhr ? clamp(95-rhr,20,85) : 40;
-    return (hr + 25 + recentAverageCompletion('recovery',56)*50)/2;
+    const vals=[];
+    if(rhr) vals.push(clamp(95-rhr,20,85));
+    if(touchedDayCount()) vals.push(15 + recentAverageCompletion('recovery',56)*50);
+    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
   }
   if(attr==='nutrition'){
-    let base = 30 + recentAverageCompletion('nutrition',56)*50;
+    if(!touchedDayCount() && !waist && !bf) return null;
+    let base = 15 + recentAverageCompletion('nutrition',56)*50;
     if(waist && wt) base += clamp((wt/waist)-4.5, -10, 10)*2;
     if(bf) base += clamp(25-bf, -10, 15);
     return clamp(base,0,95);
   }
-  return 35;
+  return null;
 }
 function attrLevel(attr){
-  const consistency = recentAverageCompletion(attr,56)*100;
+  const days = touchedDayCount();
+  const measurementCount = measurementCountForAttr(attr);
+  const points = totalAttrPoints(attr);
+  const earnedFromWork = clamp(Math.sqrt(points) * 4.2, 0, 65);
+  const consistency = clamp(recentAverageCompletion(attr,56) * 100 * Math.min(1, days/21) * 0.25, 0, 25);
   const bench = benchmarkScoreForAttr(attr);
-  return Math.round(clamp(0.55*consistency + 0.45*bench, 1, 99));
+  const measuredBoost = bench == null ? 0 : bench * 0.35;
+  const evidenceCap = days <= 0 ? 3 : Math.min(99, 8 + days*4 + measurementCount*12);
+  const raw = Math.max(1, earnedFromWork + consistency + measuredBoost);
+  return Math.round(clamp(raw,1,evidenceCap));
 }
 function xpPct(attr){
-  const comp = recentAverageCompletion(attr,14)*100;
-  return clamp(Math.round((comp % 10) * 10), 5, 98);
+  const points = totalAttrPoints(attr) + recentAverageCompletion(attr,14)*10;
+  if(points <= 0) return 0;
+  return clamp(Math.round((points % 12) / 12 * 100), 3, 98);
 }
 function rankName(level){ return RANKS[Math.min(RANKS.length-1, Math.floor(level/15))]; }
 function overallLevel(){
+  const days = touchedDayCount();
+  if(days <= 0) return 1;
   const levels = Object.fromEntries(ATTR_IDS.map(id=>[id,attrLevel(id)]));
   let avg = ATTR_IDS.reduce((a,id)=>a+levels[id],0)/ATTR_IDS.length;
-  const daily = Number(state.settings.dailyBaseline ?? .5); const weekly = Number(state.settings.weeklyBaseline ?? .8);
+  const daily = Number(state.settings.dailyBaseline ?? .5);
   let consistency = 0;
   for(let i=0;i<28;i++) if(percentOfDay(addDays(appTodayKey(),-i)) >= daily) consistency++;
-  avg = avg*.85 + (consistency/28*100)*.15;
-  return Math.round(clamp(avg,1,99));
+  avg = avg*.9 + (consistency/28*100)*.1;
+  const overallCap = Math.min(99, 6 + days*4 + (state.measurements||[]).length*3);
+  return Math.round(clamp(avg,1,overallCap));
 }
 function levelReasons(attr){
   const reasons=[];
+  const days=touchedDayCount();
   const c=recentAverageCompletion(attr,28);
+  if(days < 7) reasons.push('early level is capped until more days are logged');
+  if(measurementCountForAttr(attr)===0 && ['strength','endurance','recovery','nutrition'].includes(attr)) reasons.push('benchmark measurements will unlock more confidence');
   if(c>=.9) reasons.push('recent targets have been consistently met');
-  else if(c<.45) reasons.push('recent targets have been missed often');
+  else if(c<.45 && days>0) reasons.push('recent targets have been missed often');
   if(attr==='strength'){
     if(latestMeasurement('bench10')) reasons.push('bench 10RM is included');
     if(latestMeasurement('pullups')) reasons.push('pull-ups are included');
@@ -446,25 +483,29 @@ function renderToday(){
   const day=ensureDay(); const scored=scoreDay(activeDate); const targets=targetsForDay(day);
   document.getElementById('todayScreen').innerHTML = `
     <div class="card tight">
-      <button class="dateButton" onclick="toggleCalendar()"><span><span class="dateMain">${activeDate===appTodayKey()?'TODAY':fmtDate(activeDate)}</span><br><span class="dateSub">${activeDate} · tap for calendar</span></span><span>▾</span></button>
+      <div class="dateNav">
+        <button class="dateSide" onclick="setDate('${addDays(activeDate,-1)}')">‹<span>${fmtDate(addDays(activeDate,-1))}</span></button>
+        <button class="dateButton" onclick="toggleCalendar()"><span><span class="dateMain">${activeDate===appTodayKey()?'TODAY':fmtDate(activeDate)}</span><br><span class="dateSub">${activeDate} · tap for calendar</span></span><span>▾</span></button>
+        <button class="dateSide" onclick="setDate('${addDays(activeDate,1)}')"><span>${fmtDate(addDays(activeDate,1))}</span>›</button>
+      </div>
       ${calendarOpen?calendarHtml():''}
-      <div class="grid2" style="margin-top:8px">
+      <div class="grid2 compactControls" style="margin-top:8px">
         <div><div class="label">Day type</div><select onchange="setDayType(this.value)">${Object.entries(DAY_TYPES).map(([id,d])=>`<option value="${id}" ${day.dayType===id?'selected':''}>${d.name}</option>`).join('')}</select></div>
         <div><div class="label">Fuel mode</div><select onchange="setFuelMode(this.value)"><option value="standard" ${day.fuelMode==='standard'?'selected':''}>Standard</option><option value="reduced" ${day.fuelMode==='reduced'?'selected':''}>Reduced Intake</option><option value="gain" ${day.fuelMode==='gain'?'selected':''}>Muscle Gain</option></select></div>
       </div>
     </div>
-    <div class="card">
+    <div class="card compactCard">
       <div class="cardTitle"><h2>Character bars</h2><span class="small">tap any bar for help</span></div>
       ${ATTRS.map(([id,name,icon])=>attrBar(id,name,icon,scored.total[id],targets[id],20,true)).join('')}
     </div>
-    <div class="card">
-      <div class="cardTitle"><h3>Quick log</h3><button class="btn" onclick="repeatLast()">Repeat last</button></div>
-      <div class="row">${Object.entries(allActivities()).filter(([id,a])=>a.fav).slice(0,10).map(([id,a])=>`<button class="chip" onclick="prepActivity('${id}')">${a.name}</button>`).join('')}</div>
+    <div class="card compactCard">
+      <div class="cardTitle"><h3>Quick log</h3><button class="btn smallBtn" onclick="repeatLast()">Repeat last</button></div>
+      <div class="row compactRow">${Object.entries(allActivities()).filter(([id,a])=>a.fav).slice(0,10).map(([id,a])=>`<button class="chip" onclick="prepActivity('${id}')">${a.name}</button>`).join('')}</div>
     </div>
     ${activityLoggerHtml()}
-    ${todayLogsHtml()}
     ${habitsHtml()}
     ${measurementsQuickHtml()}
+    ${todayLogsHtml()}
   `;
 }
 function attrBar(id,name,icon,actual,target,scale=20,clickable=false){
@@ -477,9 +518,10 @@ function calendarHtml(){
   let cells=[]; for(let i=0;i<offset;i++) cells.push('<div class="calDay blank"></div>');
   for(let d=1; d<=days; d++){
     const k=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; const st=dayStatus(k); const dot=st==='blank'?'':`<span class="dot ${st}"></span>`;
-    cells.push(`<button class="calDay ${k===activeDate?'active':''}" onclick="selectCalendarDate('${k}')">${d}${dot}</button>`);
+    const measured=(state.measurements||[]).some(mm=>mm.date===k);
+    cells.push(`<button class="calDay ${k===activeDate?'active':''} ${measured?'hasMeasurement':''}" onclick="selectCalendarDate('${k}')">${d}${dot}</button>`);
   }
-  return `<div class="calendar"><div class="row spread"><button class="btn" onclick="moveCal(-1)">‹</button><strong>${first.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button class="btn" onclick="moveCal(1)">›</button></div><div class="calGrid" style="margin-top:8px">${ordered.map(n=>`<div class="calHead">${n}</div>`).join('')}${cells.join('')}</div><div class="legend small" style="margin-top:10px"><span><i class="miniDot"></i> none</span><span><i class="miniDot yellow"></i> logged</span><span><i class="miniDot green"></i> target met</span></div></div>`;
+  return `<div class="calendar"><div class="row spread"><button class="btn" onclick="moveCal(-1)">‹</button><strong>${first.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button class="btn" onclick="moveCal(1)">›</button></div><div class="calGrid" style="margin-top:8px">${ordered.map(n=>`<div class="calHead">${n}</div>`).join('')}${cells.join('')}</div><div class="legend small" style="margin-top:10px"><span><i class="miniDot"></i> none</span><span><i class="miniDot yellow"></i> logged</span><span><i class="miniDot green"></i> target met</span><span><i class="miniShade"></i> measurement</span></div></div>`;
 }
 function activityLoggerHtml(){
   const acts=allActivities(); const a=acts[form.activity]||ACTIVITIES.basketball;
@@ -496,14 +538,20 @@ function activityLoggerHtml(){
   </div>`;
 }
 function todayLogsHtml(){
-  const day=ensureDay(); const acts=allActivities();
-  return `<div class="card"><div class="cardTitle"><h3>Today log</h3><span class="small">${(day.activities||[]).length} activities</span></div>${(day.activities||[]).length?day.activities.map((l,i)=>`<div class="row spread"><span>${acts[l.activity]?.name||l.activity} · ${l.duration} min · ${INTENSITY_LABEL[l.intensity]||l.intensity}</span><button class="btn bad" onclick="deleteActivity(${i})">delete</button></div>`).join(''):'<div class="small">No activity logged yet.</div>'}</div>`;
+  const day=ensureDay(); const acts=allActivities(); const habits=allHabits();
+  const dayMeasurements=(state.measurements||[]).filter(m=>m.date===activeDate);
+  const items=[];
+  (day.activities||[]).forEach((l,i)=>items.push(`<div class="logLine"><span>Activity · ${acts[l.activity]?.name||l.activity} · ${l.duration} min · ${INTENSITY_LABEL[l.intensity]||l.intensity}</span><button class="btn bad miniBtn" onclick="deleteActivity(${i})">delete</button></div>`));
+  Object.entries(day.habits||{}).forEach(([hid,pct])=>items.push(`<div class="logLine"><span>Habit · ${habits[hid]?.name||hid} · ${pct}%</span><button class="btn bad miniBtn" onclick="deleteHabit('${hid}')">delete</button></div>`));
+  Object.entries(day.exceptions||{}).forEach(([eid,on])=>{ if(on) items.push(`<div class="logLine"><span>Exception · ${EXCEPTIONS[eid]?.name||eid}</span><button class="btn bad miniBtn" onclick="deleteException('${eid}')">delete</button></div>`); });
+  dayMeasurements.forEach(m=>items.push(`<div class="logLine"><span>Measurement · ${MEASUREMENTS[m.type]?.name||m.type}: ${m.value} ${m.unit}</span><button class="btn bad miniBtn" onclick="deleteMeasurement('${m.type}','${m.date}')">delete</button></div>`));
+  return `<div class="card"><div class="cardTitle"><h3>Day log</h3><span class="small">${items.length} entries</span></div>${items.length?items.join(''):'<div class="small">No logged data for this day yet.</div>'}</div>`;
 }
 function habitsHtml(){
   const day=ensureDay(), habits=allHabits();
-  return `<div class="card"><div class="cardTitle"><h3>Nutrition / habits</h3><span class="small">vices assumed absent</span></div>
-    ${Object.entries(habits).map(([id,h])=>`<div class="attrRow"><div class="attrTop"><div class="attrName">${h.name}</div><button class="btn ghost" onclick="habitInfo('${id}')">?</button></div><div class="row">${[0,50,100,150].map(p=>`<button class="chip ${Number(day.habits[id]||0)===p?'active':''}" onclick="setHabit('${id}',${p})">${p===150?'150%+':p+'%'}</button>`).join('')}</div></div>`).join('')}
-    <div class="divider"></div><div class="label">Exceptions</div><div class="row">${Object.entries(EXCEPTIONS).map(([id,e])=>`<button class="chip ${day.exceptions[id]?'red active':''}" onclick="toggleException('${id}')">+ ${e.name}</button>`).join('')}</div>
+  return `<div class="card compactCard"><div class="cardTitle"><h3>Nutrition / habits</h3><span class="small">vices assumed absent</span></div>
+    <div class="habitGrid">${Object.entries(habits).map(([id,h])=>`<div class="habitCompact"><div class="habitHead"><span>${h.name}</span><button class="infoBtn" onclick="habitInfo('${id}')">?</button></div><div class="habitChips">${[0,50,100,150,200].map(p=>`<button class="chip ${Number(day.habits[id]||0)===p?'active':''}" onclick="setHabit('${id}',${p})">${p>=150?p+'%+':p+'%'}</button>`).join('')}</div></div>`).join('')}</div>
+    <div class="divider compactDivider"></div><div class="label">Exceptions</div><div class="row compactRow">${Object.entries(EXCEPTIONS).map(([id,e])=>`<button class="chip ${day.exceptions[id]?'red active':''}" onclick="toggleException('${id}')">+ ${e.name}</button>`).join('')}</div>
   </div>`;
 }
 function measurementsQuickHtml(){
@@ -536,7 +584,7 @@ function renderProfile(){
   <div class="card"><div class="cardTitle"><h3>Traits</h3></div>${traitsHtml()}</div>`;
 }
 function rankBar(level,xp,benchmark,rank){
-  return `<div class="barWrap"><div class="rankTrack"><div class="rankFill" style="width:${level}%"></div></div><div class="benchMark" style="left:${benchmark}%"></div><div class="markLabel" style="left:${benchmark}%">benchmark</div><div class="xpBar"><div class="xpFill" style="width:${xp}%"></div></div><div class="rankLabels"><span>Novice</span><span>Beginner</span><span>Developing</span><span>Intermediate</span><span>Advanced</span><span>Elite</span></div><div class="row spread"><span class="small">Rank: ${rank}</span><span class="small">XP ${xp}%</span></div></div>`;
+  return `<div class="barWrap profileBar"><div class="xpBar"><div class="xpFill" style="width:${xp}%"></div></div><div class="rankTrack"><div class="rankFill" style="width:${level}%"></div></div><div class="benchMark" style="left:${benchmark}%"></div><div class="markLabel" style="left:${benchmark}%">benchmark</div><div class="rankLabels"><span>Novice</span><span>Beginner</span><span>Developing</span><span>Intermediate</span><span>Advanced</span><span>Elite</span></div><div class="row spread"><span class="small">Rank: ${rank}</span><span class="small">XP ${xp}%</span></div></div>`;
 }
 function profileAttr(id,name,icon,benchmark){
   const level=attrLevel(id), xp=xpPct(id), rank=rankName(level);
@@ -619,6 +667,9 @@ function toggleMod(id){ form.mods=form.mods.includes(id)?form.mods.filter(x=>x!=
 function saveActivity(){ form.notes=document.getElementById('actNotes')?.value||form.notes; const day=ensureDay(); const log={...form,id:Date.now()}; day.activities.push(log); day.touched=true; state.lastActivity=log; toast('Activity saved'); render(); }
 function repeatLast(){ if(!state.lastActivity){ toast('No last activity yet'); return; } const day=ensureDay(); day.activities.push({...state.lastActivity,id:Date.now()}); day.touched=true; toast('Repeated last activity'); render(); }
 function deleteActivity(i){ ensureDay().activities.splice(i,1); ensureDay().touched=true; render(); }
+function deleteHabit(id){ const day=ensureDay(); delete day.habits[id]; day.touched=true; render(); }
+function deleteException(id){ const day=ensureDay(); delete day.exceptions[id]; day.touched=true; render(); }
+function deleteMeasurement(type,date){ state.measurements=(state.measurements||[]).filter(m=>!(m.type===type && m.date===date)); render(); }
 function setHabit(id,pct){ const day=ensureDay(); if(pct===0) delete day.habits[id]; else day.habits[id]=pct; day.touched=true; render(); }
 function toggleException(id){ const day=ensureDay(); day.exceptions[id]=!day.exceptions[id]; if(!day.exceptions[id]) delete day.exceptions[id]; day.touched=true; render(); }
 function addMeasurement(type){ const el=document.getElementById('m_'+type); const value=parseFloat(el.value); if(!value){toast('Enter a value');return;} state.measurements=state.measurements.filter(m=>!(m.date===activeDate&&m.type===type)); state.measurements.push({date:activeDate,type,value,unit:MEASUREMENTS[type].unit}); ensureDay().touched=true; el.value=''; toast(`${MEASUREMENTS[type].name} saved`); render(); }
@@ -630,9 +681,9 @@ function slug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').
 function makePrompt(){ const name=(document.getElementById('customActCreateName')?.value||'[ACTIVITY NAME]'); const prompt=`I’m creating a new activity for Body Tracker, a personal RPG-style fitness app.\n\nActivity: ${name}\nTypical duration: [DURATION]\nTypical intensity: [Easy / Moderate / Hard / Competitive / Max Effort]\n\nAvailable trainable attributes:\nStrength, Endurance, Agility, Mobility, Recovery, Nutrition\n\nRating scale: 0 none, 1 minor, 2 light, 3 moderate, 4 strong, 5 primary.\n\nCalibrate against:\nWeight Lifting: Strength 5, Endurance 1, Agility 1, Mobility 1, Recovery 0, Nutrition 0\nBasketball: Strength 1, Endurance 4, Agility 5, Mobility 1, Recovery 0, Nutrition 0\nIndian Clubs: Strength 1, Endurance 2, Agility 2, Mobility 5, Recovery 4, Nutrition 0\nYoga: Strength 1, Endurance 0, Agility 1, Mobility 5, Recovery 4, Nutrition 0\nWalking: Strength 0, Endurance 2, Agility 0, Mobility 1, Recovery 1, Nutrition 0\n\nPlease suggest attribute ratings, useful modifiers, typical duration, and a short reason. Avoid over-scoring; most activities should have 1–2 primary attributes.`; const out=document.getElementById('promptOut'); out.style.display='block'; out.textContent=prompt; navigator.clipboard?.writeText(prompt); toast('Prompt copied'); }
 function makeHabitPrompt(){ const name=(document.getElementById('customHabitName')?.value||'[HABIT NAME]'); const prompt=`I’m creating a new habit for Body Tracker, a personal RPG-style fitness app.\n\nHabit: ${name}\n\nAvailable trainable attributes:\nStrength, Endurance, Agility, Mobility, Recovery, Nutrition\n\nRating scale: 0 none, 1 minor, 2 light, 3 moderate, 4 strong, 5 primary.\n\nCalibrate against:\nProtein: Strength 3, Recovery 1, Nutrition 5\nWater: Endurance 1, Recovery 3, Nutrition 5\nSleep: Strength 1, Endurance 1, Agility 1, Recovery 5\nMobility / Stretching: Agility 1, Mobility 5, Recovery 4\n\nPlease suggest attribute ratings, what counts as 100%, whether 0/50/100/150 scoring makes sense, and a short reason.`; const out=document.getElementById('habitPromptOut'); out.style.display='block'; out.textContent=prompt; navigator.clipboard?.writeText(prompt); toast('Habit prompt copied'); }
 
-function exportData(){ downloadText('body-tracker-save-v5.json', JSON.stringify(state,null,2), 'application/json'); }
+function exportData(){ downloadText('body-tracker-save-v6.json', JSON.stringify(state,null,2), 'application/json'); }
 function importData(){ const txt=document.getElementById('importBox')?.value; if(!txt){toast('Paste JSON first');return;} try{ state=migrateState(JSON.parse(txt)); save(); toast('Imported'); render(); }catch(e){ toast('Import failed'); } }
-function exportCsv(){ const rows=[['record_type','date','name','value','unit','duration_min','intensity','modifiers','notes']]; const acts=allActivities(), habits=allHabits(); Object.entries(state.days||{}).forEach(([date,day])=>{ (day.activities||[]).forEach(l=>rows.push(['activity',date,acts[l.activity]?.name||l.activity,'','',l.duration,l.intensity,(l.mods||[]).join('|'),l.notes||''])); Object.entries(day.habits||{}).forEach(([hid,pct])=>rows.push(['habit',date,habits[hid]?.name||hid,pct+'%','','','','',''])); Object.entries(day.exceptions||{}).forEach(([eid,on])=>{if(on)rows.push(['exception',date,EXCEPTIONS[eid]?.name||eid,'true','','','','','']);}); }); (state.measurements||[]).forEach(m=>rows.push(['measurement',m.date,MEASUREMENTS[m.type]?.name||m.type,m.value,m.unit,'','','',''])); downloadText('body-tracker-export-v5.csv', rows.map(r=>r.map(csvCell).join(',')).join('\n'), 'text/csv'); }
+function exportCsv(){ const rows=[['record_type','date','name','value','unit','duration_min','intensity','modifiers','notes']]; const acts=allActivities(), habits=allHabits(); Object.entries(state.days||{}).forEach(([date,day])=>{ (day.activities||[]).forEach(l=>rows.push(['activity',date,acts[l.activity]?.name||l.activity,'','',l.duration,l.intensity,(l.mods||[]).join('|'),l.notes||''])); Object.entries(day.habits||{}).forEach(([hid,pct])=>rows.push(['habit',date,habits[hid]?.name||hid,pct+'%','','','','',''])); Object.entries(day.exceptions||{}).forEach(([eid,on])=>{if(on)rows.push(['exception',date,EXCEPTIONS[eid]?.name||eid,'true','','','','','']);}); }); (state.measurements||[]).forEach(m=>rows.push(['measurement',m.date,MEASUREMENTS[m.type]?.name||m.type,m.value,m.unit,'','','',''])); downloadText('body-tracker-export-v6.csv', rows.map(r=>r.map(csvCell).join(',')).join('\n'), 'text/csv'); }
 function csvCell(v){ v=String(v??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function downloadText(filename,text,type='text/plain'){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); toast('Exported '+filename); }
 function requestPersistence(){ if(navigator.storage?.persist){ navigator.storage.persist().then(ok=>toast(ok?'Persistent storage granted':'Persistent storage not granted')); } else toast('Not supported here'); }

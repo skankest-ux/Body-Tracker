@@ -13,12 +13,8 @@
   <header class="appHeader">
     <div>
       <h1>Body Tracker</h1>
-      <div class="sub">RPG fitness character sheet</div>
     </div>
-    <div class="badgeStack">
-      <div class="level" id="levelBadge">LV --</div>
-      <div class="versionBadge">v5.0.1</div>
-    </div>
+    <div class="level" id="levelBadge">LV --</div>
   </header>
 
   <main>
@@ -31,7 +27,7 @@
 </div>
 
 <nav class="tabs">
-  <button class="tab active" data-tab="today">Today</button>
+  <button class="tab active" data-tab="today">Day</button>
   <button class="tab" data-tab="week">Week</button>
   <button class="tab" data-tab="profile">Profile</button>
   <button class="tab" data-tab="trends">Trends</button>
@@ -39,7 +35,6 @@
 </nav>
 <div id="modal" class="modalBackdrop"></div>
 <div id="toast" class="toast"></div>
-<div class="versionFooter">v5.0.1</div>
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
