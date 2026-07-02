@@ -1,6 +1,6 @@
-/* Body Tracker v5.0.0 */
-const APP_VERSION = 'v5.0.0';
-const APP_BUILD = '2026-07-01.5';
+/* Body Tracker v5.0.1 */
+const APP_VERSION = 'v5.0.1';
+const APP_BUILD = '2026-07-01.5.1';
 const DB_SCHEMA = 'v2';
 const KEY = 'bodyTracker.v2';
 const LEGACY_KEY = 'bodyTracker.v1';
@@ -570,12 +570,12 @@ function drawTrend(){
 }
 function renderSettings(){
   const bench=state.settings.benchmark||'active';
-  document.getElementById('settingsScreen').innerHTML = `<div class="card"><div class="cardTitle"><h2>Body Tracker</h2><span class="versionBadge">v5.0.0</span></div><div class="small">Build ${APP_BUILD} · Storage: IndexedDB-first · DB schema: ${DB_SCHEMA}</div></div>
+  document.getElementById('settingsScreen').innerHTML = `<div class="card"><div class="cardTitle"><h2>Body Tracker</h2><span class="versionBadge">${APP_VERSION}</span></div><div class="small">Build ${APP_BUILD} · Storage: IndexedDB-first · DB schema: ${DB_SCHEMA}</div></div>
   <div class="card"><div class="cardTitle"><h3>Profile / comparison</h3></div><div class="grid2"><div><div class="label">Name</div><input value="${htmlEscape(state.profile.name||'')}" onchange="state.profile.name=this.value;render()"></div><div><div class="label">Weight</div><input type="number" value="${state.profile.weight||''}" onchange="state.profile.weight=Number(this.value)||'';render()"></div><div><div class="label">Height</div><input value="${htmlEscape(state.profile.height||'')}" onchange="state.profile.height=this.value;render()"></div><div><div class="label">Benchmark target</div><select onchange="state.settings.benchmark=this.value;render()">${Object.entries(BENCHMARKS).map(([id,b])=>`<option value="${id}" ${bench===id?'selected':''}>${b.name}</option>`).join('')}</select></div></div></div>
   <div class="card"><div class="cardTitle"><h3>Time settings</h3></div><div class="grid2"><div><div class="label">Week starts on</div><select onchange="state.settings.weekStart=Number(this.value);render()">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((n,i)=>`<option value="${i}" ${Number(state.settings.weekStart)===i?'selected':''}>${n}</option>`).join('')}</select></div><div><div class="label">Day changes at</div><select onchange="state.settings.dayChangeHour=Number(this.value);activeDate=appTodayKey();render()">${Array.from({length:24},(_,i)=>`<option value="${i}" ${Number(state.settings.dayChangeHour)===i?'selected':''}>${String(i).padStart(2,'0')}:00</option>`).join('')}</select></div></div></div>
   <div class="card"><div class="cardTitle"><h3>Scoring thresholds</h3></div><div class="grid2"><div><div class="label">Daily baseline %</div><input type="number" value="${Math.round(state.settings.dailyBaseline*100)}" onchange="state.settings.dailyBaseline=(Number(this.value)||50)/100;render()"></div><div><div class="label">Weekly baseline %</div><input type="number" value="${Math.round(state.settings.weeklyBaseline*100)}" onchange="state.settings.weeklyBaseline=(Number(this.value)||80)/100;render()"></div></div></div>
   ${customToolsHtml()}
-  <div class="card"><div class="cardTitle"><h3>Backup</h3></div><div class="grid2"><button class="btn" onclick="exportData()">Export JSON</button><button class="btn" onclick="exportCsv()">Export CSV</button></div><textarea id="importBox" placeholder="Paste JSON backup here" style="margin-top:8px"></textarea><button class="btn full" onclick="importData()">Import pasted JSON</button><button class="btn full" onclick="requestPersistence()">Request persistent storage</button><button class="btn bad full" onclick="resetAll()">Reset local data</button></div>`;
+  <div class="card"><div class="cardTitle"><h3>Backup</h3></div><div class="grid2"><button class="btn" onclick="exportData()">Export JSON</button><button class="btn" onclick="exportCsv()">Export CSV</button></div><textarea id="importBox" placeholder="Paste JSON backup here" style="margin-top:8px"></textarea><button class="btn full" onclick="importData()">Import pasted JSON</button><button class="btn full" onclick="requestPersistence()">Request persistent storage</button><button class="btn full" onclick="reloadLatestApp()">Reload latest app version</button><div class="small" style="margin-top:8px">Reload latest clears cached app files and the service worker, then reloads. It does not delete your Body Tracker save data.</div><button class="btn bad full" onclick="resetAll()">Reset local data</button></div>`;
 }
 function customToolsHtml(){
   return `<div class="card"><div class="cardTitle"><h3>Custom activity</h3></div><input id="customActCreateName" placeholder="New activity name"><div class="grid3" style="margin-top:8px">${ATTRS.map(([id,name])=>`<div><div class="label">${name}</div><input id="actScore_${id}" type="number" min="0" max="5" value="0"></div>`).join('')}</div><div class="grid2" style="margin-top:8px"><button class="btn" onclick="createCustomActivity()">Save activity</button><button class="btn" onclick="makePrompt()">ChatGPT prompt</button></div><pre id="promptOut" class="small" style="white-space:pre-wrap;display:none"></pre></div>
@@ -637,6 +637,24 @@ function csvCell(v){ v=String(v??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g
 function downloadText(filename,text,type='text/plain'){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); toast('Exported '+filename); }
 function requestPersistence(){ if(navigator.storage?.persist){ navigator.storage.persist().then(ok=>toast(ok?'Persistent storage granted':'Persistent storage not granted')); } else toast('Not supported here'); }
 function resetAll(){ if(confirm('Delete all local Body Tracker data?')){ state=defaultState(); save(); render(); } }
+
+async function reloadLatestApp(){
+  if(!confirm('Reload the latest app files? This clears cached app files only. Your Body Tracker save data stays on this device. Export JSON first if you want an extra backup.')) return;
+  toast('Clearing app cache...');
+  try{
+    if('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(k=>k.startsWith('body-tracker-')).map(k=>caches.delete(k)));
+    }
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+  }catch(e){ console.warn('Reload latest failed to clear some caches', e); }
+  const url = new URL(location.href);
+  url.searchParams.set('refresh', Date.now());
+  location.replace(url.toString());
+}
 
 function setupTabs(){ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeTab=b.dataset.tab; render(false); }); }
 setupTabs(); ensureDay(); render(false); hydrateFromIndexedDB();

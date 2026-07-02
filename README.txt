@@ -1,4 +1,4 @@
-Body Tracker v5.0.0
+Body Tracker v5.0.1
 
 Mobile-first RPG fitness tracker.
 
@@ -22,3 +22,6 @@ v5 changes:
 - Week start day and day rollover hour settings.
 - Indian Clubs activity.
 - Tappable character bars with what affects the trait and quick-gain actions.
+
+
+Update helper: Settings now includes Reload latest app version. This clears cached app files/service worker and reloads without deleting IndexedDB save data.

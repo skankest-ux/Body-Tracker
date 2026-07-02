@@ -1,4 +1,4 @@
-const CACHE_NAME = 'body-tracker-v5.0.0-20260701';
+const CACHE_NAME = 'body-tracker-v5.0.1-20260701';
 const ASSETS = ['./','./index.html','./styles.css','./app.js','./manifest.json','./icon.svg'];
 self.addEventListener('install', event => {
   self.skipWaiting();
