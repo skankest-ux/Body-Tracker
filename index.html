@@ -10,16 +10,21 @@
 </head>
 <body>
 <div class="app">
-  <header>
-    <div class="toprow">
-      <div><h1>Body Tracker</h1><div class="sub">local-first RPG character progression</div></div>
-      <div class="badgeStack"><div class="level" id="levelBadge">LV 1</div><div class="versionBadge" id="versionBadge">v4.0.0</div></div>
+  <header class="appHeader">
+    <div>
+      <h1>Body Tracker</h1>
+      <div class="sub">RPG fitness character sheet</div>
+    </div>
+    <div class="badgeStack">
+      <div class="level" id="levelBadge">LV --</div>
+      <div class="versionBadge">v5.0.0</div>
     </div>
   </header>
 
   <main>
     <section id="todayScreen" class="screen active"></section>
     <section id="weekScreen" class="screen"></section>
+    <section id="profileScreen" class="screen"></section>
     <section id="trendsScreen" class="screen"></section>
     <section id="settingsScreen" class="screen"></section>
   </main>
@@ -28,14 +33,18 @@
 <nav class="tabs">
   <button class="tab active" data-tab="today">Today</button>
   <button class="tab" data-tab="week">Week</button>
+  <button class="tab" data-tab="profile">Profile</button>
   <button class="tab" data-tab="trends">Trends</button>
   <button class="tab" data-tab="settings">Settings</button>
 </nav>
+<div id="modal" class="modalBackdrop"></div>
 <div id="toast" class="toast"></div>
-<div id="appVersionFooter" class="versionFooter">v4.0.0</div>
+<div class="versionFooter">v5.0.0</div>
 <script src="app.js"></script>
 <script>
-if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('./service-worker.js').catch(()=>{}); }
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+}
 </script>
 </body>
 </html>

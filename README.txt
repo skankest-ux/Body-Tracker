@@ -1,22 +1,24 @@
-Body Tracker v4
+Body Tracker v5.0.0
 
-Open via GitHub Pages or another HTTPS host for the best installed PWA behavior. Data is stored locally on the device.
+Mobile-first RPG fitness tracker.
 
-Storage model:
-- Primary: IndexedDB local database managed by the browser for this site/app origin.
-- Fallback mirror: localStorage.
-- Backup: JSON export/import. Export often while testing.
+Deploy to GitHub Pages:
+1. Put index.html, app.js, styles.css, manifest.json, service-worker.js, and icon.svg in the repo root.
+2. Commit and wait for Pages to deploy.
+3. Open the GitHub Pages URL on Android Chrome.
+4. Use Add to Home Screen / Install app.
 
-v4 changes:
-- Version number appears in Settings.
-- Removed the 'editable forever' text from the main date header.
-- Date header opens a calendar picker.
-- Calendar dots: blank = no logged activity/data, yellow = logged but below full daily target, green = full daily target met/exceeded.
-- Character bars are tappable and show what activities, habits, and modifiers increase each attribute.
-- Service worker cache name bumped to body-tracker-v4.
+Storage:
+- IndexedDB-first local database.
+- localStorage fallback mirror.
+- Export JSON backup from Settings before updates.
 
-
-Body Tracker v4.0.0 build 2026-06-30.4
-- Version displayed in header/footer and Settings.
-- Calendar/date picker and attribute bar guide are included.
-- Service worker is network-first and cache versioned to reduce stale installs.
+v5 changes:
+- Character bars: Strength, Endurance, Agility, Mobility, Recovery, Nutrition.
+- Body Comp removed as a trainable stat and treated as an outcome/measurement.
+- Profile page with overall fitness, attribute levels, XP bars, rank bars, and benchmark markers.
+- Benchmark setting: Average / Active / Athlete.
+- Weekly pace: expected-by-today target and ahead/behind schedule.
+- Week start day and day rollover hour settings.
+- Indian Clubs activity.
+- Tappable character bars with what affects the trait and quick-gain actions.

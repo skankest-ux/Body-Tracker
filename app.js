@@ -1,182 +1,642 @@
+/* Body Tracker v5.0.0 */
+const APP_VERSION = 'v5.0.0';
+const APP_BUILD = '2026-07-01.5';
+const DB_SCHEMA = 'v2';
+const KEY = 'bodyTracker.v2';
+const LEGACY_KEY = 'bodyTracker.v1';
+const DB_NAME = 'bodyTrackerDB';
+const DB_STORE = 'kv';
 
-const KEY='bodyTracker.v2';
-const APP_VERSION='v4.0.0';
-const APP_BUILD='2026-06-30.4';
-const DB_SCHEMA='v1';
-const LEGACY_KEY='bodyTracker.v1';
-const DB_NAME='bodyTrackerDB';
-const DB_STORE='kv';
-const ATTRS=[
-  ['strength','Strength'],['endurance','Endurance'],['athleticism','Athleticism'],['mobility','Mobility'],['recovery','Recovery'],['nutrition','Nutrition'],['bodyComp','Body Comp']
+const ATTRS = [
+  ['strength','Strength','💪'],
+  ['endurance','Endurance','❤️'],
+  ['agility','Agility','⚡'],
+  ['mobility','Mobility','🤸'],
+  ['recovery','Recovery','😴'],
+  ['nutrition','Nutrition','🥗']
 ];
-const emptyScores=()=>Object.fromEntries(ATTRS.map(([id])=>[id,0]));
-const DAY_TYPES={
-  strength:{name:'Strength Day',targets:{strength:16,endurance:8,athleticism:8,mobility:8,recovery:8,nutrition:12,bodyComp:10}},
-  endurance:{name:'Endurance Day',targets:{strength:6,endurance:16,athleticism:10,mobility:8,recovery:8,nutrition:12,bodyComp:10}},
-  athleticism:{name:'Athleticism Day',targets:{strength:8,endurance:10,athleticism:16,mobility:8,recovery:8,nutrition:12,bodyComp:10}},
-  recovery:{name:'Recovery Day',targets:{strength:4,endurance:4,athleticism:4,mobility:14,recovery:16,nutrition:14,bodyComp:10}},
-  balanced:{name:'Balanced Day',targets:{strength:10,endurance:10,athleticism:10,mobility:10,recovery:10,nutrition:12,bodyComp:10}},
-  custom:{name:'Custom Day',targets:{strength:10,endurance:10,athleticism:10,mobility:10,recovery:10,nutrition:12,bodyComp:10}}
+const ATTR_IDS = ATTRS.map(a=>a[0]);
+const OLD_ATTR_MAP = { athleticism:'agility', bodyComp:null };
+const RANKS = ['Novice','Beginner','Developing','Intermediate','Advanced','Expert','Elite'];
+const BENCHMARKS = {
+  average:{name:'Average',marker:35,desc:'Minimum viable healthy adult target'},
+  active:{name:'Active',marker:55,desc:'Healthy active person target'},
+  athlete:{name:'Athlete',marker:75,desc:'High-performing athletic target'}
 };
-const DAY_BAR_SCALE=20;
-const WEEK_BAR_SCALE=100;
-const WEEK_BUILDS={
-  balanced:{name:'Balanced Build',targets:{strength:70,endurance:70,athleticism:70,mobility:70,recovery:70,nutrition:80,bodyComp:70}},
-  muscle:{name:'Rebuild Muscle',targets:{strength:95,endurance:55,athleticism:60,mobility:60,recovery:70,nutrition:90,bodyComp:85}},
-  athletic:{name:'Athletic Base',targets:{strength:65,endurance:85,athleticism:90,mobility:65,recovery:65,nutrition:80,bodyComp:75}},
-  lean:{name:'Lean Out',targets:{strength:65,endurance:80,athleticism:65,mobility:60,recovery:70,nutrition:95,bodyComp:95}},
-  recovery:{name:'Recovery Week',targets:{strength:40,endurance:45,athleticism:40,mobility:90,recovery:95,nutrition:85,bodyComp:60}},
-  custom:{name:'Custom',targets:{strength:70,endurance:70,athleticism:70,mobility:70,recovery:70,nutrition:80,bodyComp:70}}
-};
-const ACTIVITIES={
-  basketball:{name:'Basketball',cat:'Sports',fav:true,defMin:45,defInt:'moderate',mods:['outdoor'],scores:{strength:1,endurance:4,athleticism:5,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  soccer:{name:'Soccer',cat:'Sports',scores:{strength:1,endurance:5,athleticism:5,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  baseball:{name:'Baseball / Softball',cat:'Sports',scores:{strength:1,endurance:2,athleticism:3,mobility:1,recovery:0,nutrition:0,bodyComp:1}},
-  ultimate:{name:'Ultimate Frisbee',cat:'Sports',scores:{strength:1,endurance:4,athleticism:5,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  tennis:{name:'Tennis',cat:'Sports',scores:{strength:1,endurance:4,athleticism:4,mobility:2,recovery:0,nutrition:0,bodyComp:3}},
-  pickleball:{name:'Pickleball',cat:'Sports',scores:{strength:1,endurance:2,athleticism:3,mobility:1,recovery:0,nutrition:0,bodyComp:2}},
-  football:{name:'Football',cat:'Sports',scores:{strength:2,endurance:3,athleticism:5,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  swim:{name:'Swimming',cat:'Sports',scores:{strength:1,endurance:5,athleticism:2,mobility:2,recovery:0,nutrition:0,bodyComp:3}},
-  climbing:{name:'Rock Climbing',cat:'Sports',scores:{strength:5,endurance:2,athleticism:3,mobility:4,recovery:0,nutrition:0,bodyComp:4}},
-  lifting:{name:'Weight Lifting',cat:'Training',fav:true,defMin:45,defInt:'moderate',scores:{strength:5,endurance:1,athleticism:2,mobility:1,recovery:0,nutrition:0,bodyComp:4}},
-  bodyweight:{name:'Bodyweight',cat:'Training',scores:{strength:4,endurance:2,athleticism:3,mobility:2,recovery:0,nutrition:0,bodyComp:3}},
-  elliptical:{name:'Elliptical',cat:'Training',fav:true,defMin:30,defInt:'hard',scores:{strength:1,endurance:5,athleticism:1,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  running:{name:'Running',cat:'Training',scores:{strength:1,endurance:5,athleticism:2,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  walking:{name:'Walking',cat:'Training',fav:true,defMin:30,defInt:'easy',scores:{strength:0,endurance:2,athleticism:0,mobility:1,recovery:1,nutrition:0,bodyComp:1}},
-  cycling:{name:'Cycling',cat:'Training',scores:{strength:1,endurance:5,athleticism:1,mobility:1,recovery:0,nutrition:0,bodyComp:3}},
-  yoga:{name:'Yoga / Stretching',cat:'Training',fav:true,defMin:15,defInt:'easy',mods:['lowImpact'],scores:{strength:1,endurance:0,athleticism:1,mobility:5,recovery:4,nutrition:0,bodyComp:1}},
-  mobility:{name:'Mobility Session',cat:'Training',scores:{strength:0,endurance:0,athleticism:1,mobility:5,recovery:4,nutrition:0,bodyComp:1}},
-  pt:{name:'Physical Therapy',cat:'Training',scores:{strength:1,endurance:0,athleticism:1,mobility:4,recovery:5,nutrition:0,bodyComp:1}},
-  garden:{name:'Gardening',cat:'Life',fav:true,defMin:90,defInt:'moderate',mods:['outdoor'],scores:{strength:2,endurance:3,athleticism:1,mobility:3,recovery:1,nutrition:0,bodyComp:2}},
-  yard:{name:'Yard Work',cat:'Life',scores:{strength:3,endurance:3,athleticism:1,mobility:2,recovery:0,nutrition:0,bodyComp:3}},
-  hiking:{name:'Hiking',cat:'Life',scores:{strength:2,endurance:4,athleticism:2,mobility:2,recovery:1,nutrition:0,bodyComp:3}},
-  construction:{name:'Construction',cat:'Life',scores:{strength:4,endurance:3,athleticism:2,mobility:2,recovery:0,nutrition:0,bodyComp:3}},
-  cleaning:{name:'Cleaning',cat:'Life',scores:{strength:1,endurance:2,athleticism:1,mobility:2,recovery:0,nutrition:0,bodyComp:1}}
-};
-const MODS={
-  hot:{name:'Hot',effects:{endurance:1},demand:1},humid:{name:'Humid',effects:{endurance:1},demand:1},outdoor:{name:'Outdoor',effects:{bodyComp:.5},trait:'outdoor'},hills:{name:'Hills',effects:{endurance:1,strength:.5}},heavyCarry:{name:'Heavy Carry',effects:{strength:1.5}},competitive:{name:'Competitive',effects:{athleticism:1}},lowImpact:{name:'Low Impact',effects:{recovery:.5}},highImpact:{name:'High Impact',effects:{athleticism:1},demand:1},solo:{name:'Solo',effects:{},trait:'solo'},team:{name:'Team',effects:{},trait:'team'},skill:{name:'Skill Focus',effects:{athleticism:1}},sprint:{name:'Sprint Intervals',effects:{athleticism:1,endurance:1}},long:{name:'Long Duration',effects:{endurance:1}}
-};
-const INTENSITY={easy:.75,moderate:1,hard:1.25,competitive:1.4,max:1.6};
-const INTENSITY_LABEL={easy:'Easy',moderate:'Moderate',hard:'Hard',competitive:'Competitive',max:'Max Effort'};
-const HABITS={
-  protein:{name:'Protein',info:'100% = roughly 140–170g/day. Examples: 8 oz steak or chicken ~50g, Greek yogurt ~15–25g, shake ~25–35g.',scores:{strength:3,recovery:1,nutrition:5,bodyComp:4}},
-  water:{name:'Water',info:'100% = your normal daily water target. More important on hot/humid activity days.',scores:{endurance:1,recovery:3,nutrition:5,bodyComp:1}},
-  veggies:{name:'Vegetables',info:'100% = meaningful vegetables in 2 meals. 150% = unusually vegetable-heavy day.',scores:{nutrition:5,bodyComp:2,recovery:1}},
-  fuel:{name:'Fuel Goal',info:'100% = eating matched your selected fuel mode: standard, reduced intake, or muscle gain.',scores:{nutrition:3,bodyComp:4,strength:1,recovery:1}},
-  mobility:{name:'Stretch / Mobility',info:'100% = 10–15 minutes or enough to feel meaningfully looser.',scores:{mobility:5,recovery:4,athleticism:1}},
-  sleep:{name:'Sleep',info:'100% = your sleep target, default 7.5 hours. Use your best estimate.',scores:{recovery:5,strength:1,endurance:1,athleticism:1,bodyComp:2}}
-};
-const EXCEPTIONS={lateFood:{name:'Ate after 11 PM',penalty:{nutrition:-3,bodyComp:-4,recovery:-2}},dessert:{name:'Dessert',penalty:{nutrition:-1,bodyComp:-1}},alcohol:{name:'Alcohol',penalty:{recovery:-3,nutrition:-1,bodyComp:-1}},sugary:{name:'Sugary drink',penalty:{nutrition:-2,bodyComp:-2}},junk:{name:'Junk food',penalty:{nutrition:-3,bodyComp:-2}}};
-const MEASUREMENTS={weight:{name:'Weight',unit:'lb'},waist:{name:'Waist',unit:'in'},bodyFat:{name:'Body Fat Est.',unit:'%'},bench10:{name:'Bench 10RM',unit:'lb'},elliptical5:{name:'5-min Elliptical',unit:'cal'},rhr:{name:'Resting HR',unit:'bpm'},pullups:{name:'Pull-ups',unit:'reps'},pushups:{name:'Push-ups',unit:'reps'}};
-function defaultState(){return{profile:{name:'Jake',age:45,height:'',weight:215,activity:'mixed',goal:'recomp',fuelDefault:'standard'},settings:{dailyBaseline:.5,weeklyBaseline:.8,maxDisplay:1.5,dailyBarScale:20,weeklyBarScale:100},days:{},measurements:[],weeklyBuild:'muscle',customActivities:{},customHabits:{},lastActivity:null};}
-let dbHydrated=false;
-let state=loadLocalFallback(); let activeTab='today'; let activeDate=todayKey(); let selectedChart='weight'; let calendarOpen=false; let calendarMonth=todayKey(); let selectedAttr=null; let form={activity:'basketball',duration:45,intensity:'moderate',mods:['outdoor'],notes:''};
-function todayKey(d=new Date()){return d.toISOString().slice(0,10)}
-function loadLocalFallback(){try{return JSON.parse(localStorage.getItem(KEY))||JSON.parse(localStorage.getItem(LEGACY_KEY))||defaultState()}catch{return defaultState()}}
-function openDB(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window)){reject(new Error('IndexedDB unavailable'));return} const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>req.result.createObjectStore(DB_STORE); req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error)})}
-const dbPromise=openDB().catch(err=>{console.warn('IndexedDB unavailable',err);return null});
-function idbGet(key){return dbPromise.then(db=>new Promise((resolve,reject)=>{if(!db){resolve(null);return} const tx=db.transaction(DB_STORE,'readonly'); const req=tx.objectStore(DB_STORE).get(key); req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error)}))}
-function idbPut(key,val){return dbPromise.then(db=>new Promise((resolve,reject)=>{if(!db){resolve(false);return} const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(val,key); tx.oncomplete=()=>resolve(true); tx.onerror=()=>reject(tx.error)}))}
-async function hydrateFromIndexedDB(){try{const saved=await idbGet('state'); dbHydrated=true; if(saved){state=JSON.parse(saved); localStorage.setItem(KEY,saved); ensureDay(); render(false); toast('IndexedDB save loaded');}else{await save(true);}}catch(e){dbHydrated=true; console.warn('IndexedDB load failed',e);}}
-function save(force=false){const payload=JSON.stringify(state); localStorage.setItem(KEY,payload); if(dbHydrated||force) idbPut('state',payload).catch(e=>console.warn('IndexedDB save failed',e));}
-async function requestPersistentStorage(){if(!navigator.storage?.persist){toast('Persistent storage not supported here');return} const granted=await navigator.storage.persist(); toast(granted?'Persistent storage granted':'Browser kept normal storage mode')}
-async function storageStatus(){if(!navigator.storage?.estimate)return 'IndexedDB primary'; const est=await navigator.storage.estimate(); const used=Math.round((est.usage||0)/1024); return `IndexedDB primary · ${used} KB used`}
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
-function dateAdd(key,days){const d=new Date(key+'T12:00:00');d.setDate(d.getDate()+days);return todayKey(d)}
-function weekStart(key){const d=new Date(key+'T12:00:00');const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return todayKey(d)}
-function ensureDay(key=activeDate){if(!state.days[key])state.days[key]={dayType:'balanced',fuelMode:state.profile.fuelDefault||'standard',activities:[],habits:{},exceptions:{},touched:false};return state.days[key]}
-function getActivities(){return {...ACTIVITIES,...(state.customActivities||{})}}
-function getHabits(){return {...HABITS,...(state.customHabits||{})}}
-const PRIMARY_SESSION_POINTS=13;
-function standardMinutes(act){return +act?.standardMin || +act?.defMin || 45}
-function sessionDurationFactor(min,standard=45){
-  min=+min||0; standard=Math.max(1,+standard||45);
-  const r=min/standard;
-  if(r<=0)return 0;
-  if(r<=.34)return .45;
-  if(r<=.67)return .75;
-  if(r<=1)return 1;
-  if(r<=1.34)return 1.15;
-  if(r<=2)return 1.35;
-  if(r<=3)return 1.55;
-  return 1.7;
+
+function emptyScores(){ return Object.fromEntries(ATTR_IDS.map(id=>[id,0])); }
+function normalizeScores(scores={}){
+  const out = emptyScores();
+  Object.entries(scores || {}).forEach(([k,v])=>{
+    const mapped = OLD_ATTR_MAP.hasOwnProperty(k) ? OLD_ATTR_MAP[k] : k;
+    if(mapped && out.hasOwnProperty(mapped)) out[mapped] += Number(v)||0;
+  });
+  return out;
 }
-function expectedSessionPoints(act,min,intensity){const f=sessionDurationFactor(min,standardMinutes(act))*(INTENSITY[intensity]||1);return Math.round(PRIMARY_SESSION_POINTS*f*10)/10}
-function activityPoints(log){
-  const act=getActivities()[log.activity]; if(!act)return emptyScores();
-  const out=emptyScores();
-  const f=sessionDurationFactor(+log.duration||0,standardMinutes(act))*(INTENSITY[log.intensity]||1);
-  ATTRS.forEach(([id])=>out[id]+=((act.scores[id]||0)/5)*PRIMARY_SESSION_POINTS*f);
-  (log.mods||[]).forEach(m=>{const mod=MODS[m]; if(mod) Object.entries(mod.effects||{}).forEach(([k,v])=>out[k]+=v)});
-  return out
+
+const DAY_TYPES = {
+  strength:{name:'Strength Day',targets:{strength:16,endurance:6,agility:6,mobility:8,recovery:8,nutrition:12}},
+  endurance:{name:'Endurance Day',targets:{strength:6,endurance:16,agility:8,mobility:8,recovery:8,nutrition:12}},
+  agility:{name:'Agility Day',targets:{strength:7,endurance:8,agility:16,mobility:9,recovery:8,nutrition:12}},
+  mobility:{name:'Mobility Day',targets:{strength:4,endurance:5,agility:5,mobility:16,recovery:12,nutrition:12}},
+  recovery:{name:'Recovery Day',targets:{strength:4,endurance:4,agility:4,mobility:14,recovery:16,nutrition:14}},
+  balanced:{name:'Balanced Day',targets:{strength:10,endurance:10,agility:10,mobility:10,recovery:10,nutrition:12}},
+  custom:{name:'Custom Day',targets:{strength:10,endurance:10,agility:10,mobility:10,recovery:10,nutrition:12}}
+};
+const WEEK_BUILDS = {
+  balanced:{name:'Balanced Build',targets:{strength:70,endurance:70,agility:70,mobility:70,recovery:70,nutrition:80}},
+  muscle:{name:'Rebuild Muscle',targets:{strength:95,endurance:55,agility:55,mobility:60,recovery:70,nutrition:90}},
+  athletic:{name:'Athletic Base',targets:{strength:65,endurance:85,agility:90,mobility:65,recovery:65,nutrition:80}},
+  lean:{name:'Lean Out',targets:{strength:65,endurance:80,agility:65,mobility:60,recovery:70,nutrition:95}},
+  recovery:{name:'Recovery Week',targets:{strength:40,endurance:45,agility:40,mobility:90,recovery:95,nutrition:85}},
+  custom:{name:'Custom',targets:{strength:70,endurance:70,agility:70,mobility:70,recovery:70,nutrition:80}}
+};
+
+const ACTIVITIES = {
+  basketball:{name:'Basketball',cat:'Sports',fav:true,defMin:45,typical:45,defInt:'moderate',mods:['outdoor'],scores:{strength:1,endurance:4,agility:5,mobility:1,recovery:0,nutrition:0}},
+  soccer:{name:'Soccer',cat:'Sports',typical:60,scores:{strength:1,endurance:5,agility:5,mobility:1,recovery:0,nutrition:0}},
+  baseball:{name:'Baseball / Softball',cat:'Sports',typical:60,scores:{strength:1,endurance:2,agility:3,mobility:1,recovery:0,nutrition:0}},
+  ultimate:{name:'Ultimate Frisbee',cat:'Sports',typical:60,scores:{strength:1,endurance:4,agility:5,mobility:1,recovery:0,nutrition:0}},
+  tennis:{name:'Tennis',cat:'Sports',typical:45,scores:{strength:1,endurance:4,agility:4,mobility:2,recovery:0,nutrition:0}},
+  pickleball:{name:'Pickleball',cat:'Sports',typical:45,scores:{strength:1,endurance:2,agility:3,mobility:1,recovery:0,nutrition:0}},
+  football:{name:'Football',cat:'Sports',typical:45,scores:{strength:2,endurance:3,agility:5,mobility:1,recovery:0,nutrition:0}},
+  swim:{name:'Swimming',cat:'Sports',typical:45,scores:{strength:1,endurance:5,agility:2,mobility:2,recovery:0,nutrition:0}},
+  climbing:{name:'Rock Climbing',cat:'Sports',typical:60,scores:{strength:5,endurance:2,agility:4,mobility:4,recovery:0,nutrition:0}},
+  lifting:{name:'Weight Lifting',cat:'Training',fav:true,defMin:45,typical:45,defInt:'moderate',scores:{strength:5,endurance:1,agility:1,mobility:1,recovery:0,nutrition:0}},
+  bodyweight:{name:'Bodyweight',cat:'Training',typical:30,scores:{strength:4,endurance:2,agility:2,mobility:2,recovery:0,nutrition:0}},
+  elliptical:{name:'Elliptical',cat:'Training',fav:true,defMin:30,typical:30,defInt:'hard',scores:{strength:1,endurance:5,agility:0,mobility:1,recovery:0,nutrition:0}},
+  running:{name:'Running',cat:'Training',typical:30,scores:{strength:1,endurance:5,agility:2,mobility:1,recovery:0,nutrition:0}},
+  walking:{name:'Walking',cat:'Training',fav:true,defMin:30,typical:30,defInt:'easy',scores:{strength:0,endurance:2,agility:0,mobility:1,recovery:1,nutrition:0}},
+  cycling:{name:'Cycling',cat:'Training',typical:45,scores:{strength:1,endurance:5,agility:0,mobility:1,recovery:0,nutrition:0}},
+  yoga:{name:'Yoga / Stretching',cat:'Training',fav:true,defMin:15,typical:15,defInt:'easy',mods:['lowImpact'],scores:{strength:1,endurance:0,agility:1,mobility:5,recovery:4,nutrition:0}},
+  mobility:{name:'Mobility Session',cat:'Training',typical:15,scores:{strength:0,endurance:0,agility:1,mobility:5,recovery:4,nutrition:0}},
+  indianClubs:{name:'Indian Clubs',cat:'Training',fav:true,defMin:10,typical:15,defInt:'easy',mods:['lowImpact','skill'],scores:{strength:1,endurance:2,agility:2,mobility:5,recovery:4,nutrition:0}},
+  pt:{name:'Physical Therapy',cat:'Training',typical:20,scores:{strength:1,endurance:0,agility:1,mobility:4,recovery:5,nutrition:0}},
+  garden:{name:'Gardening',cat:'Life',fav:true,defMin:90,typical:120,defInt:'moderate',mods:['outdoor'],scores:{strength:2,endurance:3,agility:1,mobility:3,recovery:1,nutrition:0}},
+  yard:{name:'Yard Work',cat:'Life',typical:120,scores:{strength:3,endurance:3,agility:1,mobility:2,recovery:0,nutrition:0}},
+  hiking:{name:'Hiking',cat:'Life',typical:90,scores:{strength:2,endurance:4,agility:2,mobility:2,recovery:1,nutrition:0}},
+  construction:{name:'Construction',cat:'Life',typical:180,scores:{strength:4,endurance:3,agility:1,mobility:2,recovery:0,nutrition:0}},
+  cleaning:{name:'Cleaning',cat:'Life',typical:60,scores:{strength:1,endurance:2,agility:1,mobility:2,recovery:0,nutrition:0}}
+};
+const MODS = {
+  hot:{name:'Hot',effects:{endurance:1},demand:1},
+  humid:{name:'Humid',effects:{endurance:1},demand:1},
+  outdoor:{name:'Outdoor',effects:{recovery:.25},trait:'outdoor'},
+  hills:{name:'Hills',effects:{endurance:1,strength:.5}},
+  heavyCarry:{name:'Heavy Carry',effects:{strength:1.5}},
+  competitive:{name:'Competitive',effects:{agility:1,endurance:.5}},
+  lowImpact:{name:'Low Impact',effects:{recovery:.5}},
+  highImpact:{name:'High Impact',effects:{agility:1},demand:1},
+  solo:{name:'Solo',effects:{},trait:'solo'},
+  team:{name:'Team',effects:{},trait:'team'},
+  skill:{name:'Skill Focus',effects:{agility:1}},
+  sprint:{name:'Sprint Intervals',effects:{agility:1,endurance:1}},
+  long:{name:'Long Duration',effects:{endurance:1}}
+};
+const INTENSITY = {easy:.75,moderate:1,hard:1.25,competitive:1.4,max:1.6};
+const INTENSITY_LABEL = {easy:'Easy',moderate:'Moderate',hard:'Hard',competitive:'Competitive',max:'Max Effort'};
+
+const HABITS = {
+  protein:{name:'Protein',info:'100% = roughly 140–170g/day. Examples: 8 oz steak/chicken ~50g, Greek yogurt ~15–25g, shake ~25–35g.',scores:{strength:3,recovery:1,nutrition:5}},
+  water:{name:'Water',info:'100% = your normal daily water target. More important on hot/humid activity days.',scores:{endurance:1,recovery:3,nutrition:5}},
+  veggies:{name:'Vegetables',info:'100% = meaningful vegetables in 2 meals. 150% = unusually vegetable-heavy day.',scores:{nutrition:5,recovery:1}},
+  fuel:{name:'Fuel Goal',info:'100% = eating matched your selected fuel mode: standard, reduced intake, or muscle gain.',scores:{nutrition:3,strength:1,recovery:1}},
+  mobility:{name:'Stretch / Mobility',info:'100% = 10–15 minutes or enough to feel meaningfully looser.',scores:{mobility:5,recovery:4,agility:1}},
+  sleep:{name:'Sleep',info:'100% = your sleep target, default 7.5 hours. Use your best estimate.',scores:{recovery:5,strength:1,endurance:1,agility:1}}
+};
+const EXCEPTIONS = {
+  lateFood:{name:'Ate after 11 PM',penalty:{nutrition:-3,recovery:-2}},
+  dessert:{name:'Dessert',penalty:{nutrition:-1}},
+  alcohol:{name:'Alcohol',penalty:{recovery:-3,nutrition:-1}},
+  sugary:{name:'Sugary drink',penalty:{nutrition:-2}},
+  junk:{name:'Junk food',penalty:{nutrition:-3}}
+};
+const MEASUREMENTS = {
+  weight:{name:'Weight',unit:'lb'},
+  waist:{name:'Waist',unit:'in'},
+  bodyFat:{name:'Body Fat Est.',unit:'%'},
+  bench10:{name:'Bench 10RM',unit:'lb'},
+  elliptical5:{name:'5-min Elliptical',unit:'cal'},
+  rhr:{name:'Resting HR',unit:'bpm'},
+  pullups:{name:'Pull-ups',unit:'reps'},
+  pushups:{name:'Push-ups',unit:'reps'}
+};
+const QUICK_GAIN = {
+  strength:[
+    ['10 push-ups','bodyweight',5,'moderate'],['1 set squats','bodyweight',6,'moderate'],['30-sec plank','bodyweight',3,'easy'],['5 pull-ups / assisted','bodyweight',5,'hard'],['10 min lifting circuit','lifting',10,'moderate']
+  ],
+  endurance:[
+    ['5-min brisk walk','walking',5,'moderate'],['3-min stairs','running',3,'hard'],['5-min elliptical','elliptical',5,'hard'],['2-min jumping jacks','bodyweight',2,'hard'],['10-min easy walk','walking',10,'easy']
+  ],
+  agility:[
+    ['3-min footwork','bodyweight',3,'hard'],['5-min jump rope','bodyweight',5,'hard'],['10 min shooting/dribbling','basketball',10,'moderate'],['5-min lateral shuffles','bodyweight',5,'hard'],['10 min Indian clubs','indianClubs',10,'easy']
+  ],
+  mobility:[
+    ['5-min stretch','mobility',5,'easy'],['10 min Indian clubs','indianClubs',10,'easy'],['Hip opener set','mobility',6,'easy'],['Shoulder mobility','mobility',6,'easy'],['10 min yoga','yoga',10,'easy']
+  ],
+  recovery:[
+    ['5-min breathing','mobility',5,'easy'],['10-min easy walk','walking',10,'easy'],['10 min gentle mobility','mobility',10,'easy'],['Water check-in','waterHabit',0,'easy'],['Early wind-down','sleepHabit',0,'easy']
+  ],
+  nutrition:[
+    ['Water goal check','waterHabit',0,'easy'],['Protein serving','proteinHabit',0,'easy'],['Vegetable serving','veggiesHabit',0,'easy'],['Confirm fuel goal','fuelHabit',0,'easy'],['Avoid late snack','lateBoundary',0,'easy']
+  ]
+};
+const ATTR_GUIDE = {
+  strength:{desc:'Force production and muscle. Raised by lifting, bodyweight work, climbing, construction, heavy carries, and protein consistency.'},
+  endurance:{desc:'Stamina and sustained work capacity. Raised by basketball, soccer, running, cycling, elliptical, hiking, walking, and hot/humid efforts.'},
+  agility:{desc:'Quick, coordinated movement: footwork, speed, balance, rhythm, and change of direction. Raised by sports, drills, sprint intervals, jump rope, Indian clubs, and skill work.'},
+  mobility:{desc:'Range of motion and quality of movement. Raised by stretching, yoga, Indian clubs, mobility sessions, PT, and climbing.'},
+  recovery:{desc:'Restoration and fatigue management. Raised by sleep, easy movement, hydration, low-impact mobility, and light/restorative days.'},
+  nutrition:{desc:'Fueling habits. Raised by protein, water, vegetables, fuel goal, and avoiding exceptions like late-night food or junk food.'}
+};
+
+function defaultState(){
+  return {
+    saveVersion:2,
+    appVersion:APP_VERSION,
+    profile:{name:'Jake',age:45,height:'',weight:215,sex:'male',activity:'mixed',goal:'recomp',fuelDefault:'standard'},
+    settings:{dailyBaseline:.5,weeklyBaseline:.8,maxDisplay:1.5,dailyBarScale:20,weeklyBarScale:100,weekStart:1,dayChangeHour:3,benchmark:'active'},
+    days:{},measurements:[],weeklyBuild:'muscle',customActivities:{},customHabits:{},lastActivity:null,lastProfileLevels:null
+  };
 }
-function addScores(a,b){ATTRS.forEach(([id])=>a[id]+=(b[id]||0)); return a}
-function habitPoints(day){const out=emptyScores(); Object.entries(day.habits||{}).forEach(([hid,pct])=>{const h=getHabits()[hid]; if(!h)return; const factor=(+pct||0)/100; Object.entries(h.scores).forEach(([k,v])=>out[k]+=v*factor)}); if(!day.exceptions?.lateFood){out.nutrition+=3; out.bodyComp+=3; out.recovery+=1;} Object.entries(day.exceptions||{}).forEach(([eid,on])=>{if(on){const ex=EXCEPTIONS[eid]; Object.entries(ex?.penalty||{}).forEach(([k,v])=>out[k]+=v)}}); return out}
-function dayActual(key=activeDate){const day=ensureDay(key); const out=emptyScores(); (day.activities||[]).forEach(l=>addScores(out,activityPoints(l))); addScores(out,habitPoints(day)); ATTRS.forEach(([id])=>out[id]=Math.max(0,Math.round(out[id]*10)/10)); return out}
-function dayTargets(key=activeDate){const day=ensureDay(key); return {...(DAY_TYPES[day.dayType]||DAY_TYPES.balanced).targets}}
-function pctOf(actual,target){const a=sumVals(actual), t=sumVals(target); return t? a/t:0}
-function sumVals(obj){return ATTRS.reduce((s,[id])=>s+(+obj[id]||0),0)}
-function touched(day){return !!(day?.touched || day?.activities?.length || Object.keys(day?.habits||{}).length || Object.keys(day?.exceptions||{}).some(k=>day.exceptions[k]))}
-function weekKeys(key=activeDate){const start=weekStart(key); return Array.from({length:7},(_,i)=>dateAdd(start,i))}
-function weekActual(key=activeDate){const out=emptyScores(); weekKeys(key).forEach(k=>addScores(out,dayActual(k))); return out}
-function weekTargets(){return {...(WEEK_BUILDS[state.weeklyBuild]||WEEK_BUILDS.muscle).targets}}
-function dailyStreak(){let count=0; let k=todayKey(); for(let i=0;i<365;i++){const d=state.days[k]; if(!touched(d))break; if(pctOf(dayActual(k),dayTargets(k))>=state.settings.dailyBaseline) count++; else break; k=dateAdd(k,-1)} return count}
-function weeklyStreak(){let count=0; let k=todayKey(); for(let i=0;i<104;i++){const wk=weekKeys(k); if(!wk.some(x=>touched(state.days[x])))break; if(pctOf(weekActual(k),weekTargets())>=state.settings.weeklyBaseline) count++; else break; k=dateAdd(weekStart(k),-1)} return count}
-function monthLabel(key){const d=new Date(key+'T12:00:00'); return d.toLocaleString(undefined,{month:'long',year:'numeric'})}
-function monthAdd(key,months){const d=new Date(key+'T12:00:00'); d.setMonth(d.getMonth()+months,1); return todayKey(d)}
-function dayStatus(key){const day=state.days?.[key]; if(!touched(day))return 'blank'; return pctOf(dayActual(key),dayTargets(key))>=1?'green':'yellow'}
-function toggleCalendar(){calendarOpen=!calendarOpen; calendarMonth=activeDate; render(false)}
-function setCalendarMonth(delta){calendarMonth=monthAdd(calendarMonth,delta); render(false)}
-function renderCalendar(){if(!calendarOpen)return ''; const base=new Date(calendarMonth+'T12:00:00'); const y=base.getFullYear(), m=base.getMonth(); const first=new Date(y,m,1,12); const startOffset=(first.getDay()+6)%7; const start=new Date(first); start.setDate(first.getDate()-startOffset); const today=todayKey(); let cells=''; for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); const key=todayKey(d); const inMonth=d.getMonth()===m; const st=dayStatus(key); const active=key===activeDate?' active':''; cells+=`<button class="calDay ${inMonth?'':'dim'}${active}" onclick="setDate('${key}'); calendarOpen=false; render()"><span>${d.getDate()}</span><i class="dot ${st}"></i></button>`} return `<div class="calendarPanel"><div class="calHead"><button class="btn small ghost" onclick="setCalendarMonth(-1)">‹</button><b>${monthLabel(calendarMonth)}</b><button class="btn small ghost" onclick="setCalendarMonth(1)">›</button></div><div class="calLegend"><span><i class="dot blank"></i> none</span><span><i class="dot yellow"></i> below target</span><span><i class="dot green"></i> target met</span></div><div class="calWeek"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="calGrid">${cells}</div><div class="tiny" style="margin-top:8px">Dots are based on saved daily progress. Green = daily target met or exceeded.</div></div>`}
-function level(){const total=Object.values(state.days).reduce((s,d)=>s+(touched(d)?pctOf(dayActual(Object.keys(state.days).find(k=>state.days[k]===d)),dayTargets(Object.keys(state.days).find(k=>state.days[k]===d))):0),0);return Math.max(1,Math.floor(total/3)+1)}
-function bar(id,label,actual,target,scaleMax){const max=scaleMax||Math.max(target*(state.settings.maxDisplay||1.5),1); const aw=Math.min(100,(actual/max)*100); const tw=Math.min(100,(target/max)*100); const over=actual>target?' over':''; const selected=selectedAttr===id?' selected':''; return `<button class="attr${over}${selected}" onclick="showAttrDetail('${id}')"><div class="attrHead"><div class="attrName">${label}</div><div class="attrVal">${fmt(actual)} / ${fmt(target)}${actual>target?` +${fmt(actual-target)}`:''}</div></div><div class="bar"><div class="fill" style="width:${aw}%"></div><div class="target" style="left:${tw}%"></div></div><div class="tiny attrTap">tap for how to raise ${label}</div></button>`}
-function showAttrDetail(id){selectedAttr=selectedAttr===id?null:id; render(false)}
-function attrName(id){return ATTRS.find(a=>a[0]===id)?.[1]||id}
-function attrSources(id){const activities=Object.entries(getActivities()).filter(([,a])=>(a.scores?.[id]||0)>0).sort((a,b)=>(b[1].scores[id]||0)-(a[1].scores[id]||0)).slice(0,6); const habits=Object.entries(getHabits()).filter(([,h])=>(h.scores?.[id]||0)>0).sort((a,b)=>(b[1].scores[id]||0)-(a[1].scores[id]||0)).slice(0,5); const mods=Object.entries(MODS).filter(([,m])=>(m.effects?.[id]||0)>0).sort((a,b)=>(b[1].effects[id]||0)-(a[1].effects[id]||0)).slice(0,5); return {activities,habits,mods}}
-function attrDetailCard(id,actual,target){if(!id)return ''; const name=attrName(id); const gap=Math.max(0,(target[id]||0)-(actual[id]||0)); const src=attrSources(id); const acts=src.activities.map(([aid,a])=>`<button class="miniAction" onclick="prepActivity('${aid}')"><b>${a.name}</b><span>${a.defMin||standardMinutes(a)}m · ${INTENSITY_LABEL[a.defInt||'moderate']}</span></button>`).join('')||'<div class="tiny">No mapped activities yet.</div>'; const habits=src.habits.map(([hid,h])=>`<button class="miniAction" onclick="setHabit('${hid}',100)"><b>${h.name}</b><span>log 100%</span></button>`).join('')||'<div class="tiny">No mapped habits yet.</div>'; const mods=src.mods.map(([,m])=>m.name).join(', ')||'none'; const status=gap>0?`You are <b>${fmt(gap)}</b> points short of today’s ${name} target.`:`You met or exceeded today’s ${name} target.`; return `<div class="attrDetail"><div class="sectionTitle">${name} guide <span>${fmt(actual[id]||0)} / ${fmt(target[id]||0)}</span></div><div class="tiny">${status}</div><div class="miniTitle">Best activities</div><div class="miniGrid">${acts}</div><div class="miniTitle">Helpful habits</div><div class="miniGrid">${habits}</div><div class="tiny" style="margin-top:8px"><b>Useful modifiers:</b> ${mods}</div></div>`}
-function fmt(n){return Number.isInteger(n)?n:String(Math.round(n*10)/10)}
-function render(doSave=true){document.getElementById('levelBadge').textContent='LV '+level(); const vb=document.getElementById('versionBadge'); if(vb) vb.textContent=APP_VERSION; const vf=document.getElementById('appVersionFooter'); if(vf) vf.textContent=APP_VERSION; renderTabs(); renderToday(); renderWeek(); renderTrends(); renderSettings(); if(doSave) save()}
-function renderTabs(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab)); document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(activeTab+'Screen').classList.add('active')}
-function renderToday(){const root=document.getElementById('todayScreen'); const day=ensureDay(); const actual=dayActual(); const target=dayTargets(); const activities=getActivities(); const favs=Object.entries(activities).filter(([id,a])=>a.fav).slice(0,9); const last=state.lastActivity; root.innerHTML=`
-  <div class="card flat">
-    <div class="datebar"><button class="btn ghost" onclick="setDate(dateAdd(activeDate,-1))">‹</button><button class="date dateButton" onclick="toggleCalendar()"><b>${activeDate===todayKey()?'TODAY':activeDate}</b><div class="tiny">tap for calendar</div></button><button class="btn ghost" onclick="setDate(dateAdd(activeDate,1))">›</button></div>${renderCalendar()}
-    <div class="row" style="margin-top:10px"><select class="inlineSelect" onchange="setDayType(this.value)">${Object.entries(DAY_TYPES).map(([id,d])=>`<option value="${id}" ${day.dayType===id?'selected':''}>${d.name}</option>`).join('')}</select><select class="inlineSelect" onchange="setFuelMode(this.value)"><option value="standard" ${day.fuelMode==='standard'?'selected':''}>Standard fuel</option><option value="reduced" ${day.fuelMode==='reduced'?'selected':''}>Reduced intake</option><option value="gain" ${day.fuelMode==='gain'?'selected':''}>Muscle gain</option></select></div>
+let state = migrateState(loadLocalFallback());
+let activeTab = 'today';
+let activeDate = appTodayKey();
+let selectedChart = 'weight';
+let calendarOpen = false;
+let calendarMonth = activeDate.slice(0,7);
+let selectedAttr = null;
+let form = {activity:'basketball',duration:45,intensity:'moderate',mods:['outdoor'],notes:''};
+
+function appNow(){ return new Date(); }
+function shiftedDate(d=appNow()){
+  const copy = new Date(d);
+  copy.setHours(copy.getHours() - (state.settings?.dayChangeHour ?? 3));
+  return copy;
+}
+function dateKey(d=new Date()){ return d.toISOString().slice(0,10); }
+function appTodayKey(){ return dateKey(shiftedDate(new Date())); }
+function keyToDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(Date.UTC(y,m-1,d,12,0,0)); }
+function addDays(k,n){ const d=keyToDate(k); d.setUTCDate(d.getUTCDate()+n); return dateKey(d); }
+function fmtDate(k){ const d=keyToDate(k); return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+
+function loadLocalFallback(){
+  try { return JSON.parse(localStorage.getItem(KEY)) || JSON.parse(localStorage.getItem(LEGACY_KEY)) || defaultState(); }
+  catch { return defaultState(); }
+}
+function migrateState(s){
+  const base = defaultState();
+  s = {...base,...(s||{})};
+  s.profile = {...base.profile,...(s.profile||{})};
+  s.settings = {...base.settings,...(s.settings||{})};
+  s.customActivities = s.customActivities || {};
+  s.customHabits = s.customHabits || {};
+  s.days = s.days || {};
+  s.measurements = s.measurements || [];
+  s.weeklyBuild = s.weeklyBuild || 'muscle';
+  s.saveVersion = 2;
+  s.appVersion = APP_VERSION;
+  // Normalize legacy day types and fuel modes.
+  Object.values(s.days).forEach(day=>{
+    if(day.dayType === 'athleticism') day.dayType = 'agility';
+    day.activities = day.activities || [];
+    day.habits = day.habits || {};
+    day.exceptions = day.exceptions || {};
+    day.fuelMode = day.fuelMode || s.profile.fuelDefault || 'standard';
+    day.touched = !!(day.touched || day.activities.length || Object.keys(day.habits).length || Object.keys(day.exceptions).length);
+  });
+  return s;
+}
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window)){ reject(new Error('IndexedDB unavailable')); return; }
+    const req = indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+const dbPromise = openDB().catch(err=>{ console.warn(err); return null; });
+function idbGet(key){ return dbPromise.then(db=>new Promise((resolve,reject)=>{ if(!db){resolve(null);return;} const tx=db.transaction(DB_STORE,'readonly'); const req=tx.objectStore(DB_STORE).get(key); req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error); })); }
+function idbPut(key,val){ return dbPromise.then(db=>new Promise((resolve,reject)=>{ if(!db){resolve(false);return;} const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(val,key); tx.oncomplete=()=>resolve(true); tx.onerror=()=>reject(tx.error); })); }
+function save(){
+  state.appVersion = APP_VERSION;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){ console.warn(e); }
+  idbPut(KEY, state).catch(e=>console.warn(e));
+}
+function hydrateFromIndexedDB(){
+  idbGet(KEY).then(found=>{
+    if(found){ state = migrateState(found); save(); }
+    render(false);
+  });
+}
+
+function allActivities(){ return {...ACTIVITIES,...(state.customActivities||{})}; }
+function allHabits(){ return {...HABITS,...(state.customHabits||{})}; }
+function ensureDay(k=activeDate){
+  if(!state.days[k]) state.days[k] = {dayType:'strength',fuelMode:state.profile.fuelDefault||'standard',activities:[],habits:{},exceptions:{},touched:false};
+  const day = state.days[k];
+  day.dayType = DAY_TYPES[day.dayType] ? day.dayType : (day.dayType === 'athleticism' ? 'agility' : 'balanced');
+  day.activities = day.activities || [];
+  day.habits = day.habits || {};
+  day.exceptions = day.exceptions || {};
+  day.fuelMode = day.fuelMode || state.profile.fuelDefault || 'standard';
+  return day;
+}
+function getDay(k=activeDate){ return state.days[k] || null; }
+function targetsForDay(day=ensureDay()){ return normalizeScores(DAY_TYPES[day.dayType]?.targets || DAY_TYPES.balanced.targets); }
+function weekTargets(){ return normalizeScores(WEEK_BUILDS[state.weeklyBuild]?.targets || WEEK_BUILDS.muscle.targets); }
+
+function durationFactor(minutes, typical=45){
+  const ratio = Math.max(0, minutes / Math.max(1, typical));
+  if(ratio <= .33) return .42;
+  if(ratio <= .67) return .7;
+  if(ratio <= 1) return 1;
+  if(ratio <= 1.33) return 1.15;
+  if(ratio <= 2) return 1.35;
+  return Math.min(1.75, 1.35 + (ratio-2)*.12);
+}
+function scoreActivity(log){
+  const acts = allActivities();
+  const a = acts[log.activity] || ACTIVITIES.basketball;
+  const base = normalizeScores(a.scores);
+  const out = emptyScores();
+  const dur = durationFactor(Number(log.duration)||0, Number(a.typical)||Number(a.defMin)||45);
+  const int = INTENSITY[log.intensity] || 1;
+  // Primary rating of 5 at a typical moderate session produces 13 points.
+  const scalar = 2.6 * dur * int;
+  ATTR_IDS.forEach(id=> out[id] += base[id] * scalar);
+  (log.mods||[]).forEach(mid=>{
+    const m = MODS[mid];
+    if(!m) return;
+    const effects = normalizeScores(m.effects);
+    ATTR_IDS.forEach(id=> out[id] += effects[id]);
+  });
+  return out;
+}
+function scoreHabit(id,pct){
+  const h = allHabits()[id]; if(!h) return emptyScores();
+  const base = normalizeScores(h.scores);
+  const mult = (Number(pct)||0) / 100;
+  const out = emptyScores();
+  ATTR_IDS.forEach(a=> out[a] = base[a] * mult);
+  return out;
+}
+function scoreDay(k=activeDate){
+  const day = getDay(k); const total=emptyScores(); const by=[];
+  if(!day) return {total,by,touched:false};
+  (day.activities||[]).forEach(log=>{
+    const s=scoreActivity(log); addScores(total,s); by.push({type:'activity',name:allActivities()[log.activity]?.name||log.activity,scores:s,log});
+  });
+  Object.entries(day.habits||{}).forEach(([id,pct])=>{
+    const s=scoreHabit(id,pct); addScores(total,s); by.push({type:'habit',name:allHabits()[id]?.name||id,scores:s,pct});
+  });
+  Object.entries(day.exceptions||{}).forEach(([id,on])=>{
+    if(!on) return; const ex=EXCEPTIONS[id]; if(!ex) return;
+    const s=normalizeScores(ex.penalty); addScores(total,s); by.push({type:'exception',name:ex.name,scores:s});
+  });
+  ATTR_IDS.forEach(id=> total[id] = Math.max(0,total[id]));
+  return {total,by,touched: !!(day.touched || (day.activities||[]).length || Object.keys(day.habits||{}).length || Object.keys(day.exceptions||{}).length)};
+}
+function addScores(dst,src){ ATTR_IDS.forEach(id=> dst[id] = (dst[id]||0)+(src[id]||0)); return dst; }
+function percentOfDay(k=activeDate){
+  const day = getDay(k); if(!day) return 0;
+  const scored = scoreDay(k).total, targets = targetsForDay(day);
+  const totalTarget = ATTR_IDS.reduce((a,id)=>a+targets[id],0);
+  const totalActual = ATTR_IDS.reduce((a,id)=>a+Math.min(scored[id],targets[id]),0);
+  return totalTarget ? totalActual/totalTarget : 0;
+}
+function dayStatus(k){
+  const day = getDay(k); const scored = scoreDay(k);
+  if(!day || !scored.touched) return 'blank';
+  return percentOfDay(k) >= 1 ? 'green' : 'yellow';
+}
+function weekStartKey(k=activeDate){
+  const start = Number(state.settings.weekStart ?? 1);
+  const d = keyToDate(k);
+  const dow = d.getUTCDay();
+  const diff = (dow - start + 7) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  return dateKey(d);
+}
+function weekKeys(k=activeDate){ const start=weekStartKey(k); return Array.from({length:7},(_,i)=>addDays(start,i)); }
+function weekProgressFraction(k=activeDate){
+  const keys = weekKeys(k); const idx = Math.max(0, keys.indexOf(k));
+  // Current day counts as one full day for a simple accessible pace target.
+  return Math.min(1,(idx+1)/7);
+}
+function weekScores(k=activeDate){
+  const total=emptyScores(); weekKeys(k).forEach(dayKey=> addScores(total, scoreDay(dayKey).total)); return total;
+}
+function avgAheadBehind(k=activeDate){
+  const actual = weekScores(k), targets = weekTargets(), frac = weekProgressFraction(k);
+  let sum = 0, count = 0;
+  ATTR_IDS.forEach(id=>{
+    const expected = targets[id] * frac;
+    if(expected>0){ sum += ((actual[id]-expected)/expected)*100; count++; }
+  });
+  return count ? sum/count : 0;
+}
+
+function latestMeasurement(type){
+  const arr=(state.measurements||[]).filter(m=>m.type===type).sort((a,b)=>a.date.localeCompare(b.date));
+  return arr[arr.length-1] || null;
+}
+function recentAverageCompletion(attr, days=42){
+  let sum=0, count=0;
+  for(let i=0;i<days;i++){
+    const k=addDays(appTodayKey(),-i); const day=getDay(k); if(!day) continue;
+    const target=targetsForDay(day)[attr]||1; const actual=scoreDay(k).total[attr]||0;
+    sum += Math.min(actual/target,1.2); count++;
+  }
+  return count ? sum/count : 0;
+}
+function benchmarkScoreForAttr(attr){
+  const wt = latestMeasurement('weight')?.value || Number(state.profile.weight)||215;
+  const bench = latestMeasurement('bench10')?.value;
+  const pullups = latestMeasurement('pullups')?.value;
+  const pushups = latestMeasurement('pushups')?.value;
+  const ell = latestMeasurement('elliptical5')?.value;
+  const rhr = latestMeasurement('rhr')?.value;
+  const waist = latestMeasurement('waist')?.value;
+  const bf = latestMeasurement('bodyFat')?.value;
+  if(attr==='strength'){
+    const b = bench ? clamp((bench/wt)*70,0,90) : 35;
+    const p = pullups ? clamp(pullups*4,0,90) : 35;
+    const pu = pushups ? clamp(pushups*1.2,0,90) : 35;
+    return (b+p+pu)/3;
+  }
+  if(attr==='endurance'){
+    const e = ell ? clamp((ell-35)*2.1,20,90) : 35;
+    const hr = rhr ? clamp(95-rhr,20,85) : 35;
+    return (e+hr)/2;
+  }
+  if(attr==='agility') return 30 + recentAverageCompletion('agility',56)*45;
+  if(attr==='mobility') return 25 + recentAverageCompletion('mobility',56)*50;
+  if(attr==='recovery'){
+    const hr = rhr ? clamp(95-rhr,20,85) : 40;
+    return (hr + 25 + recentAverageCompletion('recovery',56)*50)/2;
+  }
+  if(attr==='nutrition'){
+    let base = 30 + recentAverageCompletion('nutrition',56)*50;
+    if(waist && wt) base += clamp((wt/waist)-4.5, -10, 10)*2;
+    if(bf) base += clamp(25-bf, -10, 15);
+    return clamp(base,0,95);
+  }
+  return 35;
+}
+function attrLevel(attr){
+  const consistency = recentAverageCompletion(attr,56)*100;
+  const bench = benchmarkScoreForAttr(attr);
+  return Math.round(clamp(0.55*consistency + 0.45*bench, 1, 99));
+}
+function xpPct(attr){
+  const comp = recentAverageCompletion(attr,14)*100;
+  return clamp(Math.round((comp % 10) * 10), 5, 98);
+}
+function rankName(level){ return RANKS[Math.min(RANKS.length-1, Math.floor(level/15))]; }
+function overallLevel(){
+  const levels = Object.fromEntries(ATTR_IDS.map(id=>[id,attrLevel(id)]));
+  let avg = ATTR_IDS.reduce((a,id)=>a+levels[id],0)/ATTR_IDS.length;
+  const daily = Number(state.settings.dailyBaseline ?? .5); const weekly = Number(state.settings.weeklyBaseline ?? .8);
+  let consistency = 0;
+  for(let i=0;i<28;i++) if(percentOfDay(addDays(appTodayKey(),-i)) >= daily) consistency++;
+  avg = avg*.85 + (consistency/28*100)*.15;
+  return Math.round(clamp(avg,1,99));
+}
+function levelReasons(attr){
+  const reasons=[];
+  const c=recentAverageCompletion(attr,28);
+  if(c>=.9) reasons.push('recent targets have been consistently met');
+  else if(c<.45) reasons.push('recent targets have been missed often');
+  if(attr==='strength'){
+    if(latestMeasurement('bench10')) reasons.push('bench 10RM is included');
+    if(latestMeasurement('pullups')) reasons.push('pull-ups are included');
+    if(latestMeasurement('pushups')) reasons.push('push-ups are included');
+  }
+  if(attr==='endurance'){
+    if(latestMeasurement('elliptical5')) reasons.push('5-min elliptical sprint is included');
+    if(latestMeasurement('rhr')) reasons.push('resting heart rate is included');
+  }
+  if(attr==='nutrition'){
+    reasons.push('protein, water, vegetables, fuel goal, and exceptions affect this');
+  }
+  return reasons.length ? reasons : ['recent activities, habits, and benchmark measurements affect this level'];
+}
+function profileSnapshot(){
+  const levels = Object.fromEntries(ATTR_IDS.map(id=>[id,attrLevel(id)]));
+  return {overall:overallLevel(), attrs:levels};
+}
+
+function clamp(v,min,max){ return Math.min(max,Math.max(min,Number(v)||0)); }
+function pct(v,scale){ return `${clamp(v/scale*100,0,100)}%`; }
+function overClass(v,target){ return v>=target ? ' over' : ''; }
+function htmlEscape(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),1700); }
+
+function render(doSave=true){
+  if(doSave) save();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(`${activeTab}Screen`).classList.add('active');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));
+  document.getElementById('levelBadge').textContent = `LV ${overallLevel()}`;
+  renderToday(); renderWeek(); renderProfile(); renderTrends(); renderSettings();
+}
+function renderToday(){
+  const day=ensureDay(); const scored=scoreDay(activeDate); const targets=targetsForDay(day);
+  document.getElementById('todayScreen').innerHTML = `
+    <div class="card tight">
+      <button class="dateButton" onclick="toggleCalendar()"><span><span class="dateMain">${activeDate===appTodayKey()?'TODAY':fmtDate(activeDate)}</span><br><span class="dateSub">${activeDate} · tap for calendar</span></span><span>▾</span></button>
+      ${calendarOpen?calendarHtml():''}
+      <div class="grid2" style="margin-top:8px">
+        <div><div class="label">Day type</div><select onchange="setDayType(this.value)">${Object.entries(DAY_TYPES).map(([id,d])=>`<option value="${id}" ${day.dayType===id?'selected':''}>${d.name}</option>`).join('')}</select></div>
+        <div><div class="label">Fuel mode</div><select onchange="setFuelMode(this.value)"><option value="standard" ${day.fuelMode==='standard'?'selected':''}>Standard</option><option value="reduced" ${day.fuelMode==='reduced'?'selected':''}>Reduced Intake</option><option value="gain" ${day.fuelMode==='gain'?'selected':''}>Muscle Gain</option></select></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="cardTitle"><h2>Character bars</h2><span class="small">tap any bar for help</span></div>
+      ${ATTRS.map(([id,name,icon])=>attrBar(id,name,icon,scored.total[id],targets[id],20,true)).join('')}
+    </div>
+    <div class="card">
+      <div class="cardTitle"><h3>Quick log</h3><button class="btn" onclick="repeatLast()">Repeat last</button></div>
+      <div class="row">${Object.entries(allActivities()).filter(([id,a])=>a.fav).slice(0,10).map(([id,a])=>`<button class="chip" onclick="prepActivity('${id}')">${a.name}</button>`).join('')}</div>
+    </div>
+    ${activityLoggerHtml()}
+    ${todayLogsHtml()}
+    ${habitsHtml()}
+    ${measurementsQuickHtml()}
+  `;
+}
+function attrBar(id,name,icon,actual,target,scale=20,clickable=false){
+  const fill = Math.min(actual,scale); const marker = clamp(target/scale*100,0,100); const click = clickable?`onclick="openAttrGuide('${id}')"`:'';
+  return `<div class="attrRow" ${click}><div class="attrTop"><div class="attrName">${icon||''} ${name}</div><div class="attrScore">${actual.toFixed(1)} / ${target}</div></div><div class="barWrap"><div class="bar"><div class="barFill${overClass(actual,target)}" style="width:${pct(fill,scale)}"></div></div><div class="targetMark" style="left:${marker}%"></div><div class="markLabel" style="left:${marker}%">target</div></div></div>`;
+}
+function calendarHtml(){
+  const [y,m]=calendarMonth.split('-').map(Number); const first=new Date(Date.UTC(y,m-1,1,12)); const days=new Date(Date.UTC(y,m,0,12)).getUTCDate();
+  const startDow=Number(state.settings.weekStart??1); const offset=(first.getUTCDay()-startDow+7)%7; const names=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; const ordered=Array.from({length:7},(_,i)=>names[(startDow+i)%7]);
+  let cells=[]; for(let i=0;i<offset;i++) cells.push('<div class="calDay blank"></div>');
+  for(let d=1; d<=days; d++){
+    const k=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; const st=dayStatus(k); const dot=st==='blank'?'':`<span class="dot ${st}"></span>`;
+    cells.push(`<button class="calDay ${k===activeDate?'active':''}" onclick="selectCalendarDate('${k}')">${d}${dot}</button>`);
+  }
+  return `<div class="calendar"><div class="row spread"><button class="btn" onclick="moveCal(-1)">‹</button><strong>${first.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button class="btn" onclick="moveCal(1)">›</button></div><div class="calGrid" style="margin-top:8px">${ordered.map(n=>`<div class="calHead">${n}</div>`).join('')}${cells.join('')}</div><div class="legend small" style="margin-top:10px"><span><i class="miniDot"></i> none</span><span><i class="miniDot yellow"></i> logged</span><span><i class="miniDot green"></i> target met</span></div></div>`;
+}
+function activityLoggerHtml(){
+  const acts=allActivities(); const a=acts[form.activity]||ACTIVITIES.basketball;
+  const primary = ATTR_IDS.slice().sort((x,y)=>(normalizeScores(a.scores)[y]||0)-(normalizeScores(a.scores)[x]||0))[0];
+  const typicalScore = normalizeScores(a.scores)[primary]*2.6;
+  return `<div class="card"><div class="cardTitle"><h3>Log activity</h3><span class="small">typical ${a.typical||a.defMin||45} min</span></div>
+    <div class="label">Activity</div><select onchange="selectActivity(this.value)">${Object.entries(acts).map(([id,act])=>`<option value="${id}" ${form.activity===id?'selected':''}>${act.name}</option>`).join('')}</select>
+    <div class="grid2" style="margin-top:8px"><div><div class="label">Duration</div><input type="number" min="1" value="${form.duration}" oninput="form.duration=Number(this.value)||0"></div><div><div class="label">Intensity</div><select onchange="setIntensity(this.value)">${Object.entries(INTENSITY_LABEL).map(([id,n])=>`<option value="${id}" ${form.intensity===id?'selected':''}>${n}</option>`).join('')}</select></div></div>
+    <div class="row" style="margin-top:8px">${[15,30,45,60,90,120].map(m=>`<button class="chip ${form.duration===m?'active':''}" onclick="setDuration(${m})">${m}</button>`).join('')}</div>
+    <div class="label" style="margin-top:10px">Modifiers</div><div class="row">${Object.entries(MODS).map(([id,m])=>`<button class="chip ${form.mods.includes(id)?'active':''}" onclick="toggleMod('${id}')">${m.name}</button>`).join('')}</div>
+    <div class="small" style="margin-top:8px">A typical moderate ${a.name} session gives about ${typicalScore.toFixed(1)} ${ATTRS.find(x=>x[0]===primary)?.[1]} points before modifiers.</div>
+    <textarea id="actNotes" placeholder="Notes" style="margin-top:8px">${htmlEscape(form.notes||'')}</textarea>
+    <button class="btn primary full" style="margin-top:8px" onclick="saveActivity()">Save Activity</button>
+  </div>`;
+}
+function todayLogsHtml(){
+  const day=ensureDay(); const acts=allActivities();
+  return `<div class="card"><div class="cardTitle"><h3>Today log</h3><span class="small">${(day.activities||[]).length} activities</span></div>${(day.activities||[]).length?day.activities.map((l,i)=>`<div class="row spread"><span>${acts[l.activity]?.name||l.activity} · ${l.duration} min · ${INTENSITY_LABEL[l.intensity]||l.intensity}</span><button class="btn bad" onclick="deleteActivity(${i})">delete</button></div>`).join(''):'<div class="small">No activity logged yet.</div>'}</div>`;
+}
+function habitsHtml(){
+  const day=ensureDay(), habits=allHabits();
+  return `<div class="card"><div class="cardTitle"><h3>Nutrition / habits</h3><span class="small">vices assumed absent</span></div>
+    ${Object.entries(habits).map(([id,h])=>`<div class="attrRow"><div class="attrTop"><div class="attrName">${h.name}</div><button class="btn ghost" onclick="habitInfo('${id}')">?</button></div><div class="row">${[0,50,100,150].map(p=>`<button class="chip ${Number(day.habits[id]||0)===p?'active':''}" onclick="setHabit('${id}',${p})">${p===150?'150%+':p+'%'}</button>`).join('')}</div></div>`).join('')}
+    <div class="divider"></div><div class="label">Exceptions</div><div class="row">${Object.entries(EXCEPTIONS).map(([id,e])=>`<button class="chip ${day.exceptions[id]?'red active':''}" onclick="toggleException('${id}')">+ ${e.name}</button>`).join('')}</div>
+  </div>`;
+}
+function measurementsQuickHtml(){
+  return `<div class="card"><div class="cardTitle"><h3>Measurements</h3><button class="btn" onclick="activeTab='trends';render()">Graphs</button></div><div class="grid2 land3">${Object.entries(MEASUREMENTS).map(([id,m])=>`<div><div class="label">${m.name} (${m.unit})</div><div class="row"><input id="m_${id}" type="number" step="0.1" placeholder="${latestMeasurement(id)?.value||''}"><button class="btn" onclick="addMeasurement('${id}')">+</button></div></div>`).join('')}</div></div>`;
+}
+function renderWeek(){
+  const actual=weekScores(activeDate), targets=weekTargets(), frac=weekProgressFraction(activeDate), pace=avgAheadBehind(activeDate);
+  const paceClass = pace>=0?'statusGood':'statusBad'; const paceText = `${Math.abs(pace).toFixed(0)}% ${pace>=0?'ahead/on pace':'behind schedule'}`;
+  document.getElementById('weekScreen').innerHTML = `<div class="card"><div class="cardTitle"><h2>Weekly build</h2><span class="pill ${paceClass}">${paceText}</span></div>
+    <div class="grid2"><div><div class="label">Weekly goal</div><select onchange="state.weeklyBuild=this.value;render()">${Object.entries(WEEK_BUILDS).map(([id,w])=>`<option value="${id}" ${state.weeklyBuild===id?'selected':''}>${w.name}</option>`).join('')}</select></div><div><div class="label">Expected by today</div><div class="metricBig">${Math.round(frac*100)}%</div></div></div>
+    <div class="small" style="margin:8px 0">Blue marker = expected progress by today. Yellow marker = full weekly target.</div>
+    ${ATTRS.map(([id,name,icon])=>weeklyBar(id,name,icon,actual[id],targets[id],targets[id]*frac)).join('')}
+  </div>`;
+}
+function weeklyBar(id,name,icon,actual,target,expected){
+  const scale=Math.max(100,target*1.2,actual*1.05); const exPct=clamp(expected/scale*100,0,100); const tarPct=clamp(target/scale*100,0,100);
+  return `<div class="attrRow"><div class="attrTop"><div class="attrName">${icon} ${name}</div><div class="attrScore">${actual.toFixed(1)} / ${target} · ${expected?((actual-expected)/expected*100).toFixed(0):0}% pace</div></div><div class="barWrap"><div class="bar"><div class="barFill${actual>=target?' over':''}" style="width:${pct(actual,scale)}"></div></div><div class="paceMark" style="left:${exPct}%"></div><div class="targetMark" style="left:${tarPct}%"></div><div class="markLabel" style="left:${exPct}%">today</div><div class="markLabel" style="left:${tarPct}%">week</div></div></div>`;
+}
+function renderProfile(){
+  const snap=profileSnapshot(); const bench=BENCHMARKS[state.settings.benchmark]||BENCHMARKS.active;
+  const last=state.lastProfileLevels; const changes=[];
+  if(last){ if(snap.overall!==last.overall) changes.push(`Overall ${last.overall} → ${snap.overall}`); ATTR_IDS.forEach(id=>{ if(snap.attrs[id]!==last.attrs?.[id]) changes.push(`${ATTRS.find(a=>a[0]===id)[1]} ${last.attrs?.[id]||'?'} → ${snap.attrs[id]}`); }); }
+  if(activeTab === 'profile') { state.lastProfileLevels = snap; save(); } // stored only when profile is viewed
+  document.getElementById('profileScreen').innerHTML = `<div class="card rankCard"><div class="cardTitle"><h2>Profile</h2><span class="pill">Benchmark: ${bench.name}</span></div>
+    <div class="small">Overall Fitness</div><div class="metricBig">Level ${snap.overall}</div>${rankBar(snap.overall, xpPct('strength'), bench.marker, rankName(snap.overall))}
+    <div class="small" style="margin-top:10px">${bench.desc}. The purple marker is the selected benchmark, like targets on the daily bars.</div>
   </div>
-  <div class="card"><div class="sectionTitle">Character bars <span>actual / target</span></div><div class="tiny" style="margin:-4px 0 8px">Daily bars use a fixed 0–20 scale, so the target marker moves when you change day type.</div>${ATTRS.map(([id,name])=>bar(id,name,actual[id],target[id],state.settings.dailyBarScale||DAY_BAR_SCALE)).join('')}${attrDetailCard(selectedAttr,actual,target)}<div class="grid2"><div class="level">Daily ${Math.round(pctOf(actual,target)*100)}%</div><div class="level">${dailyStreak()} day streak</div></div></div>
-  <div class="card"><div class="sectionTitle">Quick log <span>10-sec mode</span></div><div class="quickGrid">${favs.map(([id,a])=>`<button class="quick" onclick="prepActivity('${id}')"><b>${a.name}</b><span>${a.defMin||45}m · ${INTENSITY_LABEL[a.defInt||'moderate']}</span></button>`).join('')}<button class="quick" onclick="activeTab='trends';render()"><b>Weight</b><span>quick measurement</span></button></div>${last?`<div style="margin-top:10px" class="row"><div class="tiny">Last activity: ${activities[last.activity]?.name||last.activity} · ${last.duration}m · ${INTENSITY_LABEL[last.intensity]}</div><button class="btn small primary" onclick="repeatLast()">Repeat</button></div>`:''}</div>
-  <div class="card"><div class="sectionTitle">Log activity <span>duration + variables</span></div>${activityForm()}</div>
-  <div class="card"><div class="sectionTitle">Nutrition / habits <span>good defaults, quick estimates</span></div>${habitRows(day)}<div class="sectionTitle" style="margin-top:14px">Exceptions <span>assumed absent unless tapped</span></div><div class="exceptionGrid">${Object.entries(EXCEPTIONS).map(([id,e])=>`<button class="exception ${day.exceptions?.[id]?'on':''}" onclick="toggleException('${id}')">${e.name}</button>`).join('')}</div></div>
-  <div class="card"><div class="sectionTitle">Fast note <span>rule-based shortcut</span></div><textarea id="noteParse" placeholder="Example: basketball 45 hot humid. protein 100. water 50. weight 214.5. late food."></textarea><button class="btn primary" style="margin-top:8px;width:100%" onclick="parseNote()">Parse note</button></div>
-  <div class="card"><div class="sectionTitle">Today log</div><div class="activityList">${(day.activities||[]).length?day.activities.map((l,i)=>logItem(l,i)).join(''):'<div class="tiny">No activities logged yet.</div>'}</div></div>`;
+  <div class="card"><div class="cardTitle"><h3>Attribute levels</h3><span class="small">rank + XP</span></div>${ATTRS.map(([id,name,icon])=>profileAttr(id,name,icon,bench.marker)).join('')}</div>
+  <div class="card"><div class="cardTitle"><h3>Level movement</h3></div>${changes.length?`<ul>${changes.slice(0,8).map(c=>`<li>${c}</li>`).join('')}</ul>`:'<div class="small">No level movement since last profile check. Levels change as recent consistency and benchmark measurements change.</div>'}</div>
+  <div class="card"><div class="cardTitle"><h3>Traits</h3></div>${traitsHtml()}</div>`;
 }
-function activityForm(){const activities=getActivities(); const act=activities[form.activity]||{}; return `<div class="stack"><select id="activitySel" onchange="selectActivity(this.value)">${Object.entries(activities).map(([id,a])=>`<option value="${id}" ${form.activity===id?'selected':''}>${a.name}</option>`).join('')}</select>${activityCalibrationHint(act)}<div class="grid4">${[15,30,45,60].map(m=>`<button class="chip ${+form.duration===m?'on':''}" onclick="setDuration(${m})">${m}m</button>`).join('')}</div><div class="split"><input type="number" id="durInput" min="1" value="${form.duration}" onchange="form.duration=+this.value||0"><button class="btn small" onclick="setDuration(90)">90m</button></div><div class="chips">${Object.entries(INTENSITY_LABEL).map(([id,l])=>`<button class="chip ${form.intensity===id?'on':''}" onclick="setIntensity('${id}')">${l}</button>`).join('')}</div><div class="chips">${Object.entries(MODS).map(([id,m])=>`<button class="chip ${form.mods.includes(id)?'on':''}" onclick="toggleMod('${id}')">${m.name}</button>`).join('')}</div><input id="actNotes" placeholder="Optional note" value="${escapeHtml(form.notes)}" onchange="form.notes=this.value"><button class="btn primary" onclick="saveActivity()">Save activity</button></div>`}
-function activityCalibrationHint(act){const std=standardMinutes(act); const primary=topActivityAttributes(act).map(([id,val])=>ATTRS.find(a=>a[0]===id)?.[1]).filter(Boolean).join(' + ')||'main'; const pts=expectedSessionPoints(act,form.duration,form.intensity); return `<div class="calibHint"><b>Typical session:</b> ${std}m moderate · <b>${primary}</b> activity. Current settings give a 5/5 attribute about <b>${pts}</b> pts before modifiers.</div>`}
-function topActivityAttributes(act){return Object.entries(act?.scores||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,2)}
-function habitRows(day){return Object.entries(getHabits()).map(([id,h])=>{const val=day.habits?.[id]||0;return `<div class="percentRow"><div><b>${h.name}</b><div class="habitInfo">${h.info}</div></div>${[0,50,100,150].map(p=>`<button class="pbtn ${val===p?'on':''}" onclick="setHabit('${id}',${p})">${p===150?'150+':p}</button>`).join('')}</div>`}).join('')}
-function logItem(l,i){const a=getActivities()[l.activity];return `<div class="logitem"><button class="x" onclick="deleteActivity(${i})">×</button><b>${a?.name||l.activity}</b><div class="tiny">${l.duration} min · ${INTENSITY_LABEL[l.intensity]||l.intensity}${(l.mods||[]).length?' · '+l.mods.map(m=>MODS[m]?.name||m).join(', '):''}</div>${l.notes?`<div class="tiny">${escapeHtml(l.notes)}</div>`:''}</div>`}
-function renderWeek(){const root=document.getElementById('weekScreen'); const actual=weekActual(); const target=weekTargets(); const p=Math.round(pctOf(actual,target)*100); const gaps=ATTRS.map(([id,name])=>({id,name,gap:(target[id]||0)-(actual[id]||0)})).sort((a,b)=>b.gap-a.gap).filter(x=>x.gap>0).slice(0,2); root.innerHTML=`<div class="card flat"><div class="sectionTitle">Weekly build <span>real goal</span></div><select onchange="state.weeklyBuild=this.value; render()">${Object.entries(WEEK_BUILDS).map(([id,w])=>`<option value="${id}" ${state.weeklyBuild===id?'selected':''}>${w.name}</option>`).join('')}</select><div class="grid2" style="margin-top:10px"><div class="level">Week ${p}%</div><div class="level">${weeklyStreak()} week streak</div></div></div><div class="card"><div class="sectionTitle">Weekly target vs actual <span>no day-by-day clutter</span></div>${ATTRS.map(([id,name])=>bar(id,name,actual[id],target[id],state.settings.weeklyBarScale||WEEK_BAR_SCALE)).join('')}</div><div class="card"><div class="sectionTitle">Next useful focus</div>${gaps.length?`<div class="tiny">Based on the current weekly gaps, consider a day that supports <b>${gaps.map(g=>g.name).join('</b> and <b>')}</b>. You choose; the app does not auto-change future days.</div>`:'<div class="tiny">All weekly targets are on track or above target.</div>'}</div>`}
-function renderTrends(){const root=document.getElementById('trendsScreen'); root.innerHTML=`<div class="card flat"><div class="sectionTitle">Measurements <span>entered on ${activeDate}</span></div><div class="measurementGrid">${Object.entries(MEASUREMENTS).map(([id,m])=>measureCard(id,m)).join('')}</div></div><div class="card"><div class="sectionTitle">Line graph <span>rotate phone for wide view</span></div><select onchange="selectedChart=this.value; renderTrends();">${Object.entries(MEASUREMENTS).map(([id,m])=>`<option value="${id}" ${selectedChart===id?'selected':''}>${m.name}</option>`).join('')}</select><canvas class="landscapeChart" id="trendCanvas" width="780" height="360"></canvas><div class="landscapeHint">Portrait first for daily logging. Turn sideways for a larger graph view.</div></div>`; setTimeout(drawTrend,0)}
-function measureCard(id,m){const last=[...state.measurements].filter(x=>x.type===id).sort((a,b)=>a.date.localeCompare(b.date)).at(-1); return `<div class="measureCard"><b>${m.name}</b><div class="last">${last?last.value+' '+m.unit:'—'}</div><div class="split"><input id="m_${id}" type="number" step="0.1" placeholder="${m.unit}"><button class="btn small primary" onclick="addMeasurement('${id}')">Add</button></div></div>`}
-function drawTrend(){const c=document.getElementById('trendCanvas'); if(!c)return; const ctx=c.getContext('2d'); const data=[...state.measurements].filter(x=>x.type===selectedChart).sort((a,b)=>a.date.localeCompare(b.date)); ctx.clearRect(0,0,c.width,c.height); ctx.fillStyle='#060906';ctx.fillRect(0,0,c.width,c.height); ctx.strokeStyle='#274327';ctx.lineWidth=1; for(let i=0;i<5;i++){let y=34+i*(c.height-72)/4; ctx.beginPath();ctx.moveTo(46,y);ctx.lineTo(c.width-18,y);ctx.stroke()} ctx.fillStyle='#82a17d';ctx.font='16px monospace'; if(data.length<2){ctx.fillText('Add at least two entries for '+MEASUREMENTS[selectedChart].name+'.',58,180);return} const vals=data.map(d=>+d.value), min=Math.min(...vals), max=Math.max(...vals); const pad=(max-min)*.15||2, lo=min-pad, hi=max+pad; const x=i=>46+i*(c.width-72)/(data.length-1); const y=v=>34+(hi-v)*(c.height-72)/(hi-lo); ctx.strokeStyle='#86f27c';ctx.lineWidth=3;ctx.beginPath(); data.forEach((d,i)=>i?ctx.lineTo(x(i),y(d.value)):ctx.moveTo(x(i),y(d.value)));ctx.stroke(); ctx.fillStyle='#d8f7d0';data.forEach((d,i)=>{ctx.beginPath();ctx.arc(x(i),y(d.value),4,0,Math.PI*2);ctx.fill()}); ctx.fillStyle='#82a17d'; ctx.fillText(Math.round(hi*10)/10,8,40);ctx.fillText(Math.round(lo*10)/10,8,c.height-34);ctx.fillText(data[0].date,46,c.height-12);ctx.fillText(data.at(-1).date,c.width-126,c.height-12)}
-function renderSettings(){const root=document.getElementById('settingsScreen'); root.innerHTML=`<div class="card flat versionCard"><div class="sectionTitle">Body Tracker <span>version</span></div><div class="versionBig">${APP_VERSION}</div><div class="tiny"><b>Build:</b> ${APP_BUILD} &nbsp; <b>Storage:</b> IndexedDB-first &nbsp; <b>DB schema:</b> ${DB_SCHEMA}</div><div class="tiny" style="margin-top:8px">If your phone still shows an older version, clear the installed app/site cache or reopen the GitHub Pages URL.</div></div><div class="card"><div class="sectionTitle">Profile <span>future-ready</span></div><div class="settingsRow"><label>Name</label><input value="${escapeHtml(state.profile.name||'')}" onchange="state.profile.name=this.value;render()"></div><div class="settingsRow"><label>Age</label><input type="number" value="${state.profile.age||''}" onchange="state.profile.age=+this.value||'';render()"></div><div class="settingsRow"><label>Height</label><input value="${escapeHtml(state.profile.height||'')}" placeholder="e.g. 6'0&quot;" onchange="state.profile.height=this.value;render()"></div><div class="settingsRow"><label>Weight</label><input type="number" value="${state.profile.weight||''}" onchange="state.profile.weight=+this.value||'';render()"></div><div class="settingsRow"><label>Activity level</label><select onchange="state.profile.activity=this.value;render()"><option value="mixed" ${state.profile.activity==='mixed'?'selected':''}>Mixed / active bursts</option><option value="sedentary" ${state.profile.activity==='sedentary'?'selected':''}>Mostly sedentary</option><option value="moderate" ${state.profile.activity==='moderate'?'selected':''}>Moderately active</option><option value="high" ${state.profile.activity==='high'?'selected':''}>Highly active</option></select></div><div class="settingsRow"><label>Default fuel</label><select onchange="state.profile.fuelDefault=this.value;render()"><option value="standard" ${state.profile.fuelDefault==='standard'?'selected':''}>Standard</option><option value="reduced" ${state.profile.fuelDefault==='reduced'?'selected':''}>Reduced Intake</option><option value="gain" ${state.profile.fuelDefault==='gain'?'selected':''}>Muscle Gain</option></select></div></div><div class="card"><div class="sectionTitle">Backend score settings</div><div class="settingsRow"><label>Daily baseline</label><input type="number" step="5" value="${Math.round(state.settings.dailyBaseline*100)}" onchange="state.settings.dailyBaseline=(+this.value||50)/100;render()"></div><div class="settingsRow"><label>Weekly baseline</label><input type="number" step="5" value="${Math.round(state.settings.weeklyBaseline*100)}" onchange="state.settings.weeklyBaseline=(+this.value||80)/100;render()"></div><div class="settingsRow"><label>Daily bar scale</label><input type="number" step="1" value="${state.settings.dailyBarScale||20}" onchange="state.settings.dailyBarScale=+this.value||20;render()"></div><div class="settingsRow"><label>Weekly bar scale</label><input type="number" step="5" value="${state.settings.weeklyBarScale||100}" onchange="state.settings.weeklyBarScale=+this.value||100;render()"></div></div><div class="card"><div class="sectionTitle">Create custom activity <span>manual or assisted</span></div><input id="customActCreateName" placeholder="Activity name, e.g. kayaking"><div class="tiny" style="margin:8px 0">Optional: give 0–5 ratings. Use the prompt below if you are unsure.</div><div class="grid3">${ATTRS.map(([id,name])=>`<label class="tiny">${name}<input id="actScore_${id}" type="number" min="0" max="5" step="0.5" value="0"></label>`).join('')}</div><div class="grid2" style="margin-top:8px"><button class="btn primary" onclick="createCustomActivity()">Save activity</button><button class="btn" onclick="makePrompt()">Copy scoring prompt</button></div><div id="promptOut" class="promptBox" style="display:none;margin-top:8px"></div></div><div class="card"><div class="sectionTitle">Create custom habit <span>positive goal</span></div><input id="customHabitName" placeholder="Habit name, e.g. Creatine"><input id="customHabitInfo" style="margin-top:8px" placeholder="What counts as 100%?"><div class="tiny" style="margin:8px 0">Optional: give 0–5 ratings.</div><div class="grid3">${ATTRS.map(([id,name])=>`<label class="tiny">${name}<input id="habitScore_${id}" type="number" min="0" max="5" step="0.5" value="0"></label>`).join('')}</div><div class="grid2" style="margin-top:8px"><button class="btn primary" onclick="createCustomHabit()">Save habit</button><button class="btn" onclick="makeHabitPrompt()">Copy habit prompt</button></div><div id="habitPromptOut" class="promptBox" style="display:none;margin-top:8px"></div></div><div class="card"><div class="sectionTitle">Storage <span>local-first</span></div><div class="tiny">Primary save layer: IndexedDB, a lightweight browser database stored on this device. A localStorage mirror is kept only as a fallback. This is not cache, but it can still be removed if you clear site/app data, uninstall the PWA, or the browser purges storage. Export JSON for long-term backups.</div><button class="btn" style="margin-top:8px;width:100%" onclick="requestPersistentStorage()">Request persistent storage</button></div><div class="card"><div class="sectionTitle">Backup</div><div class="grid2"><button class="btn primary" onclick="exportData()">Export JSON</button><button class="btn" onclick="exportCsv()">Export CSV</button></div><button class="btn" style="margin-top:8px;width:100%" onclick="document.getElementById('importBox').style.display='block'">Import JSON</button><textarea id="importBox" style="display:none;margin-top:8px" placeholder="Paste JSON here"></textarea><button class="btn" style="margin-top:8px;width:100%" onclick="importData()">Load pasted JSON</button><button class="btn bad" style="margin-top:8px;width:100%" onclick="resetAll()">Reset local data</button></div>`}
-function slug(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,24)||'custom'}
-function readScores(prefix){const scores=emptyScores(); ATTRS.forEach(([id])=>{scores[id]=Math.max(0,Math.min(5,parseFloat(document.getElementById(prefix+'_'+id)?.value)||0))}); return scores}
-function createCustomActivity(){const name=(document.getElementById('customActCreateName')?.value||'').trim(); if(!name){toast('Name required');return} const id='custom_'+slug(name)+'_'+Date.now(); state.customActivities=state.customActivities||{}; state.customActivities[id]={name,cat:'Custom',fav:true,defMin:45,defInt:'moderate',mods:[],scores:readScores('actScore')}; toast('Custom activity saved'); render()}
-function createCustomHabit(){const name=(document.getElementById('customHabitName')?.value||'').trim(); if(!name){toast('Name required');return} const info=(document.getElementById('customHabitInfo')?.value||'100% = personal target reached.').trim(); const id='customHabit_'+slug(name)+'_'+Date.now(); state.customHabits=state.customHabits||{}; state.customHabits[id]={name,info,scores:readScores('habitScore')}; toast('Custom habit saved'); render()}
-function exportCsv(){const rows=[['record_type','date','name','value','unit','duration_min','intensity','modifiers','notes']]; const acts=getActivities(), habits=getHabits(); Object.entries(state.days||{}).forEach(([date,day])=>{(day.activities||[]).forEach(l=>rows.push(['activity',date,acts[l.activity]?.name||l.activity,'','',l.duration,l.intensity,(l.mods||[]).join('|'),l.notes||''])); Object.entries(day.habits||{}).forEach(([hid,pct])=>rows.push(['habit',date,habits[hid]?.name||hid,pct+'%','','','','',''])); Object.entries(day.exceptions||{}).forEach(([eid,on])=>{if(on)rows.push(['exception',date,EXCEPTIONS[eid]?.name||eid,'true','','','','',''])})}); (state.measurements||[]).forEach(m=>rows.push(['measurement',m.date,MEASUREMENTS[m.type]?.name||m.type,m.value,m.unit,'','','',''])); const csv=rows.map(r=>r.map(csvCell).join(',')).join('\n'); downloadText('body-tracker-export.csv',csv,'text/csv')}
-function csvCell(v){v=String(v??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
-function downloadText(filename,text,type='text/plain'){const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); toast('Exported '+filename)}
-function setDate(k){activeDate=k;ensureDay();render()} function setDayType(v){ensureDay().dayType=v;ensureDay().touched=true;render()} function setFuelMode(v){ensureDay().fuelMode=v;ensureDay().touched=true;render()}
-function prepActivity(id){const a=getActivities()[id];form={activity:id,duration:a.defMin||45,intensity:a.defInt||'moderate',mods:[...(a.mods||[])],notes:''};render()} function selectActivity(id){prepActivity(id)} function setDuration(m){form.duration=m;render()} function setIntensity(i){form.intensity=i;render()} function toggleMod(id){form.mods=form.mods.includes(id)?form.mods.filter(x=>x!==id):[...form.mods,id];render()}
-function saveActivity(){form.notes=document.getElementById('actNotes')?.value||form.notes; const day=ensureDay(); const log={...form,id:Date.now()}; day.activities.push(log); day.touched=true; state.lastActivity=log; toast('Activity saved'); render()} function repeatLast(){if(!state.lastActivity)return; const day=ensureDay(); day.activities.push({...state.lastActivity,id:Date.now()}); day.touched=true; toast('Repeated last activity'); render()} function deleteActivity(i){ensureDay().activities.splice(i,1);ensureDay().touched=true;render()}
-function setHabit(id,pct){const day=ensureDay(); if(pct===0) delete day.habits[id]; else day.habits[id]=pct; day.touched=true; render()} function toggleException(id){const day=ensureDay(); day.exceptions[id]=!day.exceptions[id]; if(!day.exceptions[id]) delete day.exceptions[id]; day.touched=true; render()}
-function addMeasurement(type){const el=document.getElementById('m_'+type); const value=parseFloat(el.value); if(!value)return; state.measurements=state.measurements.filter(m=>!(m.date===activeDate&&m.type===type)); state.measurements.push({date:activeDate,type,value,unit:MEASUREMENTS[type].unit}); ensureDay().touched=true; el.value=''; toast(MEASUREMENTS[type].name+' saved'); render()}
-function parseNote(){const txt=(document.getElementById('noteParse').value||'').toLowerCase(); if(!txt)return; const acts=getActivities(); for(const [id,a] of Object.entries(acts)){const nm=a.name.toLowerCase().split('/')[0].trim(); if(txt.includes(id)||txt.includes(nm.split(' ')[0])){const mins=(txt.match(/(\d+)\s*(m|min|minutes)/)||[])[1]||a.defMin||45; form={activity:id,duration:+mins,intensity:txt.includes('hard')?'hard':txt.includes('easy')?'easy':txt.includes('max')?'max':'moderate',mods:[],notes:'parsed'}; ['hot','humid','outdoor','hills'].forEach(m=>{if(txt.includes(m))form.mods.push(m)}); saveActivity(); break;}}
-  if(txt.includes('protein')) setHabit('protein', txt.includes('150')?150:txt.includes('50')?50:100); if(txt.includes('water')) setHabit('water', txt.includes('50')?50:100); if(txt.includes('late')) toggleException('lateFood'); const w=(txt.match(/weight\s*(\d+(?:\.\d+)?)/)||[])[1]; if(w){state.measurements=state.measurements.filter(m=>!(m.date===activeDate&&m.type==='weight'));state.measurements.push({date:activeDate,type:'weight',value:+w,unit:'lb'});ensureDay().touched=true;} toast('Parsed what I could'); render()}
-function makePrompt(){const name=(document.getElementById('customActCreateName')?.value||'')||'[ACTIVITY NAME]'; const prompt=`I’m creating a new activity for a personal RPG-style fitness app.\n\nActivity: ${name}\nTypical duration: [DURATION]\nTypical intensity: [Easy / Moderate / Hard / Competitive / Max Effort]\n\nAvailable attributes:\nStrength, Endurance, Athleticism, Mobility, Recovery, Nutrition, Body Comp\n\nRating scale:\n0 = no meaningful contribution\n1 = minor secondary contribution\n2 = light contribution\n3 = moderate contribution\n4 = strong contribution\n5 = primary/high contribution\n\nCalibrate against these existing activities:\nBasketball: Strength 1, Endurance 4, Athleticism 5, Mobility 1, Recovery 0, Nutrition 0, Body Comp 3\nWeight Lifting: Strength 5, Endurance 1, Athleticism 2, Mobility 1, Recovery 0, Nutrition 0, Body Comp 4\nGardening: Strength 2, Endurance 3, Athleticism 1, Mobility 3, Recovery 1, Nutrition 0, Body Comp 2\nYoga / Stretching: Strength 1, Endurance 0, Athleticism 1, Mobility 5, Recovery 4, Nutrition 0, Body Comp 1\nWalking: Strength 0, Endurance 2, Athleticism 0, Mobility 1, Recovery 1, Nutrition 0, Body Comp 1\n\nPlease suggest:\n1. Best attribute ratings from 0–5\n2. Useful tags/modifiers\n3. Whether duration should scale normally or have stronger diminishing returns\n4. A short plain-English reason\n\nAvoid over-scoring. Most activities should have only 1–2 primary attributes. In this app, a 5/5 primary attribute at a typical moderate session is intended to produce about 13 day points, so a normal focused workout should feel meaningful without requiring several hours.`; const out=document.getElementById('promptOut'); out.style.display='block'; out.textContent=prompt; navigator.clipboard?.writeText(prompt); toast('Prompt copied')}
-function makeHabitPrompt(){const name=document.getElementById('customHabitName')?.value||'[HABIT NAME]'; const prompt=`I’m creating a new habit for a personal RPG-style fitness app.\n\nHabit: ${name}\n\nAvailable attributes:\nStrength, Endurance, Athleticism, Mobility, Recovery, Nutrition, Body Comp\n\nRating scale:\n0 = no meaningful contribution\n1 = minor secondary contribution\n2 = light contribution\n3 = moderate contribution\n4 = strong contribution\n5 = primary/high contribution\n\nCalibrate against these existing habits:\nNo food after 11 PM: Strength 0, Endurance 0, Athleticism 0, Mobility 0, Recovery 1, Nutrition 5, Body Comp 4\nWater Goal: Strength 0, Endurance 1, Athleticism 0, Mobility 0, Recovery 3, Nutrition 5, Body Comp 1\nProtein Goal: Strength 3, Endurance 0, Athleticism 0, Mobility 0, Recovery 1, Nutrition 5, Body Comp 4\nSleep Target: Strength 1, Endurance 1, Athleticism 1, Mobility 0, Recovery 5, Nutrition 0, Body Comp 2\nMobility / Stretching: Strength 0, Endurance 0, Athleticism 1, Mobility 5, Recovery 4, Nutrition 0, Body Comp 1\n\nPlease suggest:\n1. Best attribute ratings from 0–5\n2. What should count as 100%\n3. Whether 0/50/100/150 scoring makes sense\n4. Whether this is daily, weekly, or both\n5. A short plain-English reason\n\nAvoid over-scoring. Most habits should primarily affect 1–3 attributes.`; const out=document.getElementById('habitPromptOut'); out.style.display='block'; out.textContent=prompt; navigator.clipboard?.writeText(prompt); toast('Habit prompt copied')}
-function exportData(){downloadText('body-tracker-save.json',JSON.stringify(state,null,2),'application/json')}
-function importData(){const txt=document.getElementById('importBox')?.value; if(!txt)return; try{state=JSON.parse(txt);save();toast('Imported');render()}catch(e){toast('Import failed')}} function resetAll(){if(confirm('Delete all local data?')){state=defaultState();save();render()}}
-function escapeHtml(s=''){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
-ensureDay(); render(false); hydrateFromIndexedDB();
+function rankBar(level,xp,benchmark,rank){
+  return `<div class="barWrap"><div class="rankTrack"><div class="rankFill" style="width:${level}%"></div></div><div class="benchMark" style="left:${benchmark}%"></div><div class="markLabel" style="left:${benchmark}%">benchmark</div><div class="xpBar"><div class="xpFill" style="width:${xp}%"></div></div><div class="rankLabels"><span>Novice</span><span>Beginner</span><span>Developing</span><span>Intermediate</span><span>Advanced</span><span>Elite</span></div><div class="row spread"><span class="small">Rank: ${rank}</span><span class="small">XP ${xp}%</span></div></div>`;
+}
+function profileAttr(id,name,icon,benchmark){
+  const level=attrLevel(id), xp=xpPct(id), rank=rankName(level);
+  return `<div class="attrRow" onclick="openAttrGuide('${id}')"><div class="attrTop"><div class="attrName">${icon} ${name}</div><div class="attrScore">Level ${level} · ${rank}</div></div>${rankBar(level,xp,benchmark,rank)}<div class="tiny">${levelReasons(id).slice(0,2).join(' · ')}</div></div>`;
+}
+function traitsHtml(){
+  const traits=[];
+  const acts=Object.values(state.days||{}).flatMap(d=>d.activities||[]).map(l=>l.activity);
+  const count=id=>acts.filter(a=>a===id).length;
+  if(count('basketball')>=2) traits.push(['Hooper',count('basketball')>=8?'III':count('basketball')>=4?'II':'I']);
+  if(count('garden')+count('yard')+count('construction')>=3) traits.push(['Builder',count('garden')+count('yard')+count('construction')>=10?'III':'II']);
+  if((latestMeasurement('weight')||latestMeasurement('waist')) && recentAverageCompletion('nutrition',28)>.6) traits.push(['Recomp Focus','I']);
+  let daily=0; for(let i=0;i<20;i++) if(percentOfDay(addDays(appTodayKey(),-i))>=Number(state.settings.dailyBaseline)) daily++;
+  if(daily>=10) traits.push(['Consistent',daily>=18?'III':'II']);
+  if(recentAverageCompletion('recovery',28)>.75) traits.push(['Recovery-Minded','I']);
+  if(recentAverageCompletion('endurance',28)>.75) traits.push(['Engine Builder','I']);
+  return traits.length?`<div class="row">${traits.map(t=>`<span class="pill">${t[0]} ${t[1]}</span>`).join('')}</div>`:'<div class="small">Traits emerge after repeated behavior patterns.</div>';
+}
+function renderTrends(){
+  const data=(state.measurements||[]).filter(m=>m.type===selectedChart).sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('trendsScreen').innerHTML = `<div class="card"><div class="cardTitle"><h2>Trends</h2><select onchange="selectedChart=this.value;render()">${Object.entries(MEASUREMENTS).map(([id,m])=>`<option value="${id}" ${selectedChart===id?'selected':''}>${m.name}</option>`).join('')}</select></div><canvas id="trendCanvas" class="spark chartWide"></canvas><div class="small" style="margin-top:8px">Rotate your phone for a wider graph.</div></div><div class="card"><table class="table"><tr><th>Date</th><th>Value</th></tr>${data.slice(-12).reverse().map(m=>`<tr><td>${m.date}</td><td>${m.value} ${m.unit}</td></tr>`).join('')}</table></div>`;
+  setTimeout(drawTrend,0);
+}
+function drawTrend(){
+  const c=document.getElementById('trendCanvas'); if(!c) return; const ctx=c.getContext('2d'); const rect=c.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; c.width=rect.width*dpr; c.height=rect.height*dpr; ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,rect.width,rect.height); ctx.strokeStyle='#243524'; ctx.lineWidth=1; for(let i=1;i<5;i++){ const y=rect.height*i/5; ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(rect.width,y);ctx.stroke(); }
+  const data=(state.measurements||[]).filter(m=>m.type===selectedChart).sort((a,b)=>a.date.localeCompare(b.date)).slice(-40); if(data.length<2){ ctx.fillStyle='#88a889'; ctx.fillText('Add at least two measurements.',12,24); return; }
+  const vals=data.map(m=>Number(m.value)); const min=Math.min(...vals), max=Math.max(...vals); const pad=(max-min)||1;
+  ctx.strokeStyle='#80f278'; ctx.lineWidth=2; ctx.beginPath(); data.forEach((m,i)=>{ const x=12+(rect.width-24)*(i/(data.length-1)); const y=rect.height-14-(rect.height-32)*((m.value-min)/pad); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); }); ctx.stroke();
+  ctx.fillStyle='#e6ffe2'; ctx.fillText(`${MEASUREMENTS[selectedChart].name}: ${data[0].value} → ${data[data.length-1].value} ${MEASUREMENTS[selectedChart].unit}`,12,18);
+}
+function renderSettings(){
+  const bench=state.settings.benchmark||'active';
+  document.getElementById('settingsScreen').innerHTML = `<div class="card"><div class="cardTitle"><h2>Body Tracker</h2><span class="versionBadge">v5.0.0</span></div><div class="small">Build ${APP_BUILD} · Storage: IndexedDB-first · DB schema: ${DB_SCHEMA}</div></div>
+  <div class="card"><div class="cardTitle"><h3>Profile / comparison</h3></div><div class="grid2"><div><div class="label">Name</div><input value="${htmlEscape(state.profile.name||'')}" onchange="state.profile.name=this.value;render()"></div><div><div class="label">Weight</div><input type="number" value="${state.profile.weight||''}" onchange="state.profile.weight=Number(this.value)||'';render()"></div><div><div class="label">Height</div><input value="${htmlEscape(state.profile.height||'')}" onchange="state.profile.height=this.value;render()"></div><div><div class="label">Benchmark target</div><select onchange="state.settings.benchmark=this.value;render()">${Object.entries(BENCHMARKS).map(([id,b])=>`<option value="${id}" ${bench===id?'selected':''}>${b.name}</option>`).join('')}</select></div></div></div>
+  <div class="card"><div class="cardTitle"><h3>Time settings</h3></div><div class="grid2"><div><div class="label">Week starts on</div><select onchange="state.settings.weekStart=Number(this.value);render()">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((n,i)=>`<option value="${i}" ${Number(state.settings.weekStart)===i?'selected':''}>${n}</option>`).join('')}</select></div><div><div class="label">Day changes at</div><select onchange="state.settings.dayChangeHour=Number(this.value);activeDate=appTodayKey();render()">${Array.from({length:24},(_,i)=>`<option value="${i}" ${Number(state.settings.dayChangeHour)===i?'selected':''}>${String(i).padStart(2,'0')}:00</option>`).join('')}</select></div></div></div>
+  <div class="card"><div class="cardTitle"><h3>Scoring thresholds</h3></div><div class="grid2"><div><div class="label">Daily baseline %</div><input type="number" value="${Math.round(state.settings.dailyBaseline*100)}" onchange="state.settings.dailyBaseline=(Number(this.value)||50)/100;render()"></div><div><div class="label">Weekly baseline %</div><input type="number" value="${Math.round(state.settings.weeklyBaseline*100)}" onchange="state.settings.weeklyBaseline=(Number(this.value)||80)/100;render()"></div></div></div>
+  ${customToolsHtml()}
+  <div class="card"><div class="cardTitle"><h3>Backup</h3></div><div class="grid2"><button class="btn" onclick="exportData()">Export JSON</button><button class="btn" onclick="exportCsv()">Export CSV</button></div><textarea id="importBox" placeholder="Paste JSON backup here" style="margin-top:8px"></textarea><button class="btn full" onclick="importData()">Import pasted JSON</button><button class="btn full" onclick="requestPersistence()">Request persistent storage</button><button class="btn bad full" onclick="resetAll()">Reset local data</button></div>`;
+}
+function customToolsHtml(){
+  return `<div class="card"><div class="cardTitle"><h3>Custom activity</h3></div><input id="customActCreateName" placeholder="New activity name"><div class="grid3" style="margin-top:8px">${ATTRS.map(([id,name])=>`<div><div class="label">${name}</div><input id="actScore_${id}" type="number" min="0" max="5" value="0"></div>`).join('')}</div><div class="grid2" style="margin-top:8px"><button class="btn" onclick="createCustomActivity()">Save activity</button><button class="btn" onclick="makePrompt()">ChatGPT prompt</button></div><pre id="promptOut" class="small" style="white-space:pre-wrap;display:none"></pre></div>
+  <div class="card"><div class="cardTitle"><h3>Custom habit</h3></div><input id="customHabitName" placeholder="New habit name"><textarea id="customHabitInfo" placeholder="What counts as 100%?"></textarea><div class="grid3">${ATTRS.map(([id,name])=>`<div><div class="label">${name}</div><input id="habitScore_${id}" type="number" min="0" max="5" value="0"></div>`).join('')}</div><div class="grid2" style="margin-top:8px"><button class="btn" onclick="createCustomHabit()">Save habit</button><button class="btn" onclick="makeHabitPrompt()">ChatGPT prompt</button></div><pre id="habitPromptOut" class="small" style="white-space:pre-wrap;display:none"></pre></div>`;
+}
+
+function openAttrGuide(id){
+  selectedAttr=id; const [_,name,icon]=ATTRS.find(a=>a[0]===id); const day=ensureDay(); const target=targetsForDay(day)[id]; const actual=scoreDay(activeDate).total[id]; const remaining=Math.max(0,target-actual); const scored=scoreDay(activeDate);
+  const contributors=scored.by.filter(b=>Math.abs(b.scores[id]||0)>0).sort((a,b)=>Math.abs(b.scores[id])-Math.abs(a.scores[id]));
+  const acts=Object.entries(allActivities()).filter(([aid,a])=>(normalizeScores(a.scores)[id]||0)>0).sort((a,b)=>normalizeScores(b[1].scores)[id]-normalizeScores(a[1].scores)[id]).slice(0,7);
+  const habits=Object.entries(allHabits()).filter(([hid,h])=>(normalizeScores(h.scores)[id]||0)>0).sort((a,b)=>normalizeScores(b[1].scores)[id]-normalizeScores(a[1].scores)[id]).slice(0,5);
+  const quick=(QUICK_GAIN[id]||[]).map(q=>`<button class="btn quickAction" onclick="quickGain('${id}','${q[1]}',${q[2]},'${q[3]}')">${q[0]}</button>`).join('');
+  showModal(`<div class="modalHead"><div><h2>${icon} ${name}</h2><div class="small">${ATTR_GUIDE[id].desc}</div></div><button class="x" onclick="closeModal()">×</button></div>
+    <div class="divider"></div><div class="metricBig">${actual.toFixed(1)} / ${target}</div><div class="small">${remaining>0?`${remaining.toFixed(1)} remaining today`:'Target met or exceeded today.'}</div>
+    <div class="divider"></div><h3>Quick gain</h3><div class="quickList">${quick}</div>
+    <div class="divider"></div><h3>What affected this today</h3>${contributors.length?contributors.map(c=>`<div class="row spread"><span>${c.name}</span><span>${(c.scores[id]||0).toFixed(1)}</span></div>`).join(''):'<div class="small">Nothing logged yet affected this trait.</div>'}
+    <div class="divider"></div><h3>Best full activities</h3>${acts.map(([aid,a])=>`<button class="chip" onclick="closeModal();prepActivity('${aid}')">${a.name}</button>`).join(' ')}
+    <div class="divider"></div><h3>Helpful habits</h3>${habits.map(([hid,h])=>`<button class="chip" onclick="closeModal();setHabit('${hid}',100)">${h.name}</button>`).join(' ')}`);
+}
+function showModal(html){ const m=document.getElementById('modal'); m.innerHTML=`<div class="modalCard">${html}</div>`; m.classList.add('active'); }
+function closeModal(){ document.getElementById('modal').classList.remove('active'); }
+function habitInfo(id){ const h=allHabits()[id]; if(!h)return; showModal(`<div class="modalHead"><h2>${h.name}</h2><button class="x" onclick="closeModal()">×</button></div><p>${htmlEscape(h.info||'')}</p>`); }
+function quickGain(attr, activity, minutes, intensity){
+  if(activity.endsWith('Habit')){ const hid=activity.replace('Habit',''); setHabit(hid,100); closeModal(); return; }
+  if(activity==='lateBoundary'){ closeModal(); toast('Avoiding late food is assumed unless you log the exception.'); return; }
+  const day=ensureDay(); day.activities.push({id:Date.now(),activity,duration:minutes,intensity,mods:[],notes:`Quick gain: ${attr}`}); day.touched=true; closeModal(); toast('Quick gain added'); render();
+}
+function showAttrIfBehind(){ if(selectedAttr) openAttrGuide(selectedAttr); }
+
+function setDate(k){ activeDate=k; ensureDay(); calendarMonth=k.slice(0,7); render(); }
+function toggleCalendar(){ calendarOpen=!calendarOpen; render(false); }
+function selectCalendarDate(k){ activeDate=k; ensureDay(); calendarOpen=false; render(); }
+function moveCal(n){ const [y,m]=calendarMonth.split('-').map(Number); const d=new Date(Date.UTC(y,m-1+n,1,12)); calendarMonth=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`; render(false); }
+function setDayType(v){ ensureDay().dayType=v; ensureDay().touched=true; render(); }
+function setFuelMode(v){ ensureDay().fuelMode=v; ensureDay().touched=true; render(); }
+function prepActivity(id){ const a=allActivities()[id]; form={activity:id,duration:a.defMin||a.typical||45,intensity:a.defInt||'moderate',mods:[...(a.mods||[])],notes:''}; render(false); }
+function selectActivity(id){ prepActivity(id); }
+function setDuration(m){ form.duration=m; render(false); }
+function setIntensity(i){ form.intensity=i; render(false); }
+function toggleMod(id){ form.mods=form.mods.includes(id)?form.mods.filter(x=>x!==id):[...form.mods,id]; render(false); }
+function saveActivity(){ form.notes=document.getElementById('actNotes')?.value||form.notes; const day=ensureDay(); const log={...form,id:Date.now()}; day.activities.push(log); day.touched=true; state.lastActivity=log; toast('Activity saved'); render(); }
+function repeatLast(){ if(!state.lastActivity){ toast('No last activity yet'); return; } const day=ensureDay(); day.activities.push({...state.lastActivity,id:Date.now()}); day.touched=true; toast('Repeated last activity'); render(); }
+function deleteActivity(i){ ensureDay().activities.splice(i,1); ensureDay().touched=true; render(); }
+function setHabit(id,pct){ const day=ensureDay(); if(pct===0) delete day.habits[id]; else day.habits[id]=pct; day.touched=true; render(); }
+function toggleException(id){ const day=ensureDay(); day.exceptions[id]=!day.exceptions[id]; if(!day.exceptions[id]) delete day.exceptions[id]; day.touched=true; render(); }
+function addMeasurement(type){ const el=document.getElementById('m_'+type); const value=parseFloat(el.value); if(!value){toast('Enter a value');return;} state.measurements=state.measurements.filter(m=>!(m.date===activeDate&&m.type===type)); state.measurements.push({date:activeDate,type,value,unit:MEASUREMENTS[type].unit}); ensureDay().touched=true; el.value=''; toast(`${MEASUREMENTS[type].name} saved`); render(); }
+
+function createCustomActivity(){ const name=(document.getElementById('customActCreateName')?.value||'').trim(); if(!name){toast('Name required');return;} const id='custom_'+slug(name)+'_'+Date.now(); state.customActivities[id]={name,cat:'Custom',fav:true,defMin:45,typical:45,defInt:'moderate',mods:[],scores:readScores('actScore')}; toast('Custom activity saved'); render(); }
+function createCustomHabit(){ const name=(document.getElementById('customHabitName')?.value||'').trim(); if(!name){toast('Name required');return;} const info=(document.getElementById('customHabitInfo')?.value||'100% = personal target reached.').trim(); const id='customHabit_'+slug(name)+'_'+Date.now(); state.customHabits[id]={name,info,scores:readScores('habitScore')}; toast('Custom habit saved'); render(); }
+function readScores(prefix){ const scores=emptyScores(); ATTR_IDS.forEach(id=>{scores[id]=clamp(parseFloat(document.getElementById(`${prefix}_${id}`)?.value)||0,0,5)}); return scores; }
+function slug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,24)||'custom'; }
+function makePrompt(){ const name=(document.getElementById('customActCreateName')?.value||'[ACTIVITY NAME]'); const prompt=`I’m creating a new activity for Body Tracker, a personal RPG-style fitness app.\n\nActivity: ${name}\nTypical duration: [DURATION]\nTypical intensity: [Easy / Moderate / Hard / Competitive / Max Effort]\n\nAvailable trainable attributes:\nStrength, Endurance, Agility, Mobility, Recovery, Nutrition\n\nRating scale: 0 none, 1 minor, 2 light, 3 moderate, 4 strong, 5 primary.\n\nCalibrate against:\nWeight Lifting: Strength 5, Endurance 1, Agility 1, Mobility 1, Recovery 0, Nutrition 0\nBasketball: Strength 1, Endurance 4, Agility 5, Mobility 1, Recovery 0, Nutrition 0\nIndian Clubs: Strength 1, Endurance 2, Agility 2, Mobility 5, Recovery 4, Nutrition 0\nYoga: Strength 1, Endurance 0, Agility 1, Mobility 5, Recovery 4, Nutrition 0\nWalking: Strength 0, Endurance 2, Agility 0, Mobility 1, Recovery 1, Nutrition 0\n\nPlease suggest attribute ratings, useful modifiers, typical duration, and a short reason. Avoid over-scoring; most activities should have 1–2 primary attributes.`; const out=document.getElementById('promptOut'); out.style.display='block'; out.textContent=prompt; navigator.clipboard?.writeText(prompt); toast('Prompt copied'); }
+function makeHabitPrompt(){ const name=(document.getElementById('customHabitName')?.value||'[HABIT NAME]'); const prompt=`I’m creating a new habit for Body Tracker, a personal RPG-style fitness app.\n\nHabit: ${name}\n\nAvailable trainable attributes:\nStrength, Endurance, Agility, Mobility, Recovery, Nutrition\n\nRating scale: 0 none, 1 minor, 2 light, 3 moderate, 4 strong, 5 primary.\n\nCalibrate against:\nProtein: Strength 3, Recovery 1, Nutrition 5\nWater: Endurance 1, Recovery 3, Nutrition 5\nSleep: Strength 1, Endurance 1, Agility 1, Recovery 5\nMobility / Stretching: Agility 1, Mobility 5, Recovery 4\n\nPlease suggest attribute ratings, what counts as 100%, whether 0/50/100/150 scoring makes sense, and a short reason.`; const out=document.getElementById('habitPromptOut'); out.style.display='block'; out.textContent=prompt; navigator.clipboard?.writeText(prompt); toast('Habit prompt copied'); }
+
+function exportData(){ downloadText('body-tracker-save-v5.json', JSON.stringify(state,null,2), 'application/json'); }
+function importData(){ const txt=document.getElementById('importBox')?.value; if(!txt){toast('Paste JSON first');return;} try{ state=migrateState(JSON.parse(txt)); save(); toast('Imported'); render(); }catch(e){ toast('Import failed'); } }
+function exportCsv(){ const rows=[['record_type','date','name','value','unit','duration_min','intensity','modifiers','notes']]; const acts=allActivities(), habits=allHabits(); Object.entries(state.days||{}).forEach(([date,day])=>{ (day.activities||[]).forEach(l=>rows.push(['activity',date,acts[l.activity]?.name||l.activity,'','',l.duration,l.intensity,(l.mods||[]).join('|'),l.notes||''])); Object.entries(day.habits||{}).forEach(([hid,pct])=>rows.push(['habit',date,habits[hid]?.name||hid,pct+'%','','','','',''])); Object.entries(day.exceptions||{}).forEach(([eid,on])=>{if(on)rows.push(['exception',date,EXCEPTIONS[eid]?.name||eid,'true','','','','','']);}); }); (state.measurements||[]).forEach(m=>rows.push(['measurement',m.date,MEASUREMENTS[m.type]?.name||m.type,m.value,m.unit,'','','',''])); downloadText('body-tracker-export-v5.csv', rows.map(r=>r.map(csvCell).join(',')).join('\n'), 'text/csv'); }
+function csvCell(v){ v=String(v??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function downloadText(filename,text,type='text/plain'){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); toast('Exported '+filename); }
+function requestPersistence(){ if(navigator.storage?.persist){ navigator.storage.persist().then(ok=>toast(ok?'Persistent storage granted':'Persistent storage not granted')); } else toast('Not supported here'); }
+function resetAll(){ if(confirm('Delete all local Body Tracker data?')){ state=defaultState(); save(); render(); } }
+
+function setupTabs(){ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeTab=b.dataset.tab; render(false); }); }
+setupTabs(); ensureDay(); render(false); hydrateFromIndexedDB();
